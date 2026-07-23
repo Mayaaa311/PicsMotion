@@ -16,7 +16,7 @@
 > gained a **dwell-halo** (warm light builds where the cursor rests, fades when it
 > leaves); Dark kept. See `packages/effects/{fog,spiderverse,halo}`.
 | 6 | Manual scene editor | ⏳ |
-| 7 | Hosted automatic parsing & completion (real providers) | ⏳ (mock scaffolding in place) |
+| 7 | Hosted automatic parsing & completion (real providers) | ⏳ in progress — per-layer **style transfer** landed (mock + OpenAI/fal adapters, `python -m app.stylize`); scene analysis / segmentation / matting / depth / inpainting still mock |
 | 8 | Publishing | ⏳ |
 
 ## Milestone 0 — Definition of Done

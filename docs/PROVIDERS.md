@@ -43,3 +43,27 @@ The app must not require two language-model providers to start.
 
 > ⚠️ The original project spec accidentally embedded real-looking keys. They were
 > redacted from the spec and must be treated as compromised — rotate before use.
+
+## AI art styles (per-layer style transfer)
+
+The Urban/Spider-Verse-style "Art style" picker restyles each scene layer through an
+image model, preserving depth. It runs in two tiers:
+
+- **Mock (default, offline):** deterministic Pillow filters — visibly distinct but
+  placeholder. Generate them with:
+  ```bash
+  cd apps/ai-service
+  ./.venv/bin/python -m app.stylize ../web/public/scenes/yosemite-falls
+  ```
+  This writes `scenes/<scene>/styles/<styleId>/<layerId>.png` + `styles/manifest.json`
+  (git-ignored). The web "Art style" picker appears once a manifest exists.
+
+- **Real AI:** put freshly-rotated keys in a local `.env`, set `AI_PROVIDER_MODE=live`,
+  optionally set `OPENAI_IMAGE_MODEL` (the default is a placeholder id — set the
+  current image-edit model your account has, e.g. `gpt-image-1`) or `FAL_STYLE_MODEL`,
+  then re-run the same command. Outputs are cached by content hash, so only changed
+  layers/styles regenerate. The adapters target the documented `/v1/images/edits`
+  (OpenAI) and a fal img2img queue endpoint; **re-verify both against live docs**
+  before production.
+
+Styles: `spiderverse`, `watercolor`, `ink-sketch`, `pop-art`, `oil`.
