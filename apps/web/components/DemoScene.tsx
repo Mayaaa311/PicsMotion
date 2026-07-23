@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AudioControls } from './AudioControls';
 import { InteractiveSceneDynamic } from './InteractiveSceneDynamic';
 
-const SCENE_DIR = '/scenes/soft-nature-demo';
+const SCENE_DIR = '/scenes/yosemite-falls';
 const PRESET_NAMES = Object.keys(presets) as PresetName[];
 
 interface DemoSceneProps {

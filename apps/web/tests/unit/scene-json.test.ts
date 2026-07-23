@@ -5,7 +5,7 @@ import { safeParseSceneDocument } from '@interactive-photo/scene-schema';
 import { describe, expect, it } from 'vitest';
 
 const scenePath = fileURLToPath(
-  new URL('../../public/scenes/soft-nature-demo/scene.json', import.meta.url),
+  new URL('../../public/scenes/yosemite-falls/scene.json', import.meta.url),
 );
 
 describe('shipped sample scene', () => {
