@@ -1,0 +1,9 @@
+# Per-machine Claude configuration
+.claude/settings.local.json
+.claude/agent-memory-local/
+
+# Temporary skill inspection sources
+.vendor/agent-skills/
+
+# Local screenshots and audit artifacts
+.claude/audit-artifacts/
