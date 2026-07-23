@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "types": [
+      "vitest/globals"
+    ],
+    "paths": {
+      "@interactive-photo/scene-schema": [
+        "../scene-schema/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ]
+}
