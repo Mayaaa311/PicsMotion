@@ -49,6 +49,7 @@ export {
   DEFAULT_SPIDERVERSE_CONFIG,
   MAX_SPLASH,
   SPLASH_LIFETIME,
+  shouldStamp,
   SpiderVerseEffect,
   SplashField,
 } from './spiderverse';

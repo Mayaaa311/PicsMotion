@@ -27,9 +27,12 @@ import * as THREE from 'three';
 import { DEFAULT_POSTFX_CONFIG, resolvePostFX, type PostFXConfig } from './postfx-config';
 import {
   DEFAULT_SPIDERVERSE_CONFIG,
+  shouldStamp,
   SpiderVerseEffect,
   SplashField,
 } from './spiderverse';
+
+const SPIDER_SPACING = DEFAULT_SPIDERVERSE_CONFIG.spacing;
 
 /* -------------------------------------------------------------------------- */
 /* Flashlight effect                                                          */
@@ -153,14 +156,10 @@ export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = fals
       const now = clock.current;
       const cx = pointer.x;
       const cy = 1 - pointer.y;
-      // Deposit a splash when the cursor moves far enough (comic splats trail it).
-      if (!reducedMotion) {
-        const prev = lastSplash.current;
-        const moved = prev ? Math.hypot(cx - prev.x, cy - prev.y) : 1;
-        if (moved > 0.03) {
-          splashes.current.add(cx, cy, now);
-          lastSplash.current = { x: cx, y: cy };
-        }
+      // Deposit a paint stamp when the cursor moves far enough (splats trail it).
+      if (!reducedMotion && shouldStamp(lastSplash.current, { x: cx, y: cy }, SPIDER_SPACING)) {
+        splashes.current.add(cx, cy, now);
+        lastSplash.current = { x: cx, y: cy };
       }
       splashes.current.prune(now);
       const active = splashes.current.active;
@@ -170,10 +169,10 @@ export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = fals
       u.get('uReduced')!.value = reducedMotion ? 1 : 0;
       u.get('uCount')!.value = active.length;
       const pos = u.get('uPos')!.value as THREE.Vector2[];
-      const str = u.get('uStr')!.value as Float32Array;
+      const ages = u.get('uAge')!.value as Float32Array;
       for (let i = 0; i < active.length; i++) {
         pos[i]!.set(active[i]!.x, active[i]!.y);
-        str[i] = splashes.current.strengthAt(i, now);
+        ages[i] = splashes.current.ageAt(i, now);
       }
     }
   });
@@ -200,17 +199,7 @@ export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = fals
         ) : (
           <></>
         )}
-        {base.spiderverse ? (
-          <WrappedSpiderVerse
-            ref={spiderRef as never}
-            radius={DEFAULT_SPIDERVERSE_CONFIG.radius}
-            dotScale={DEFAULT_SPIDERVERSE_CONFIG.dotScale}
-            split={DEFAULT_SPIDERVERSE_CONFIG.split}
-            posterize={DEFAULT_SPIDERVERSE_CONFIG.posterize}
-          />
-        ) : (
-          <></>
-        )}
+        {base.spiderverse ? <WrappedSpiderVerse ref={spiderRef as never} /> : <></>}
         <Bloom
           ref={bloomRef as never}
           intensity={base.bloom}
