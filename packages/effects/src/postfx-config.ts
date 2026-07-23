@@ -30,6 +30,8 @@ export interface PostFXConfig {
   darken: number; // how dark the un-lit scene is, 0..1
   flashlightRadius: number; // fraction of the smaller viewport dimension
   flashlightFeather: number;
+  // Spider-Verse comic stylization (Urban preset)
+  spiderverse: boolean;
 }
 
 export const DEFAULT_POSTFX_CONFIG: PostFXConfig = {
@@ -51,6 +53,7 @@ export const DEFAULT_POSTFX_CONFIG: PostFXConfig = {
   darken: 0.82,
   flashlightRadius: 0.26,
   flashlightFeather: 0.28,
+  spiderverse: false,
 };
 
 export interface PostFXInput {
@@ -75,7 +78,9 @@ export interface ResolvedPostFX {
   darken: number;
   flashlightRadius: number;
   flashlightFeather: number;
+  spiderverse: boolean;
 }
+// (ResolvedPostFX mirrors these effect fields.)
 
 /**
  * Fold audio + pointer motion into the base config to get the effective
@@ -114,5 +119,6 @@ export function resolvePostFX(config: PostFXConfig, input: PostFXInput): Resolve
     darken: clamp(config.darken, 0, 1),
     flashlightRadius: Math.max(config.flashlightRadius, 0.01),
     flashlightFeather: Math.max(config.flashlightFeather, 0.001),
+    spiderverse: config.spiderverse,
   };
 }

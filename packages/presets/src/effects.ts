@@ -1,5 +1,6 @@
 import type {
   FogConfig,
+  HaloConfig,
   PaperConfig,
   ParticleConfig,
   PostFXConfig,
@@ -24,6 +25,7 @@ export interface PresetEffects {
   sunlight?: Partial<SunlightConfig>;
   water?: Partial<WaterConfig>;
   paper?: Partial<PaperConfig>;
+  halo?: Partial<HaloConfig>;
   post?: Partial<PostFXConfig>;
 }
 
@@ -68,13 +70,14 @@ export const presetEffects: Record<PresetName, PresetEffects> = {
     water: { enabled: false },
     post: {
       enabled: true,
+      spiderverse: true,
       bloom: 0.18,
       bloomAudio: 0.5,
       maxBloom: 1.6,
       vignette: 0.2,
       grain: 0.03,
       contrast: 0.16,
-      saturation: 0.1,
+      saturation: 0.12,
       chromaticAberration: 0.001,
       aberrationPointer: 0.006,
       maxAberration: 0.01,
@@ -107,6 +110,7 @@ export const presetEffects: Record<PresetName, PresetEffects> = {
     sunlight: { enabled: true, position: { x: 0.3, y: 0.25 }, color: '#ffd9a0', maxIntensity: 0.22 },
     water: { enabled: false },
     paper: { enabled: true, warm: 0.5, thickness: 0.35, borderWidthPx: 6 },
+    halo: { enabled: true, color: '#ffdca0', radius: 0.32, maxIntensity: 0.5 },
     post: {
       enabled: true,
       sepia: 0.35,

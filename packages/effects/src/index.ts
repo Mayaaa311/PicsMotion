@@ -34,8 +34,22 @@ export type { Ripple, WaterConfig } from './water';
 export { createPaperMaterial, DEFAULT_PAPER_CONFIG } from './paper';
 export type { PaperConfig } from './paper';
 
+// Cursor dwell-halo (Nostalgic)
+export { CursorHalo, DEFAULT_HALO_CONFIG } from './halo';
+export type { HaloConfig, CursorHaloProps } from './halo';
+
 // Postprocessing pipeline + flashlight (Milestone 4)
 export { PostFX, FlashlightEffect } from './postfx';
 export type { PostFXProps } from './postfx';
 export { DEFAULT_POSTFX_CONFIG, resolvePostFX } from './postfx-config';
 export type { PostFXConfig, PostFXInput, ResolvedPostFX } from './postfx-config';
+
+// Spider-Verse comic stylization (Urban)
+export {
+  DEFAULT_SPIDERVERSE_CONFIG,
+  MAX_SPLASH,
+  SPLASH_LIFETIME,
+  SpiderVerseEffect,
+  SplashField,
+} from './spiderverse';
+export type { SpiderVerseConfig, SpiderVerseOptions } from './spiderverse';

@@ -25,6 +25,11 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 import { DEFAULT_POSTFX_CONFIG, resolvePostFX, type PostFXConfig } from './postfx-config';
+import {
+  DEFAULT_SPIDERVERSE_CONFIG,
+  SpiderVerseEffect,
+  SplashField,
+} from './spiderverse';
 
 /* -------------------------------------------------------------------------- */
 /* Flashlight effect                                                          */
@@ -88,6 +93,7 @@ export class FlashlightEffect extends Effect {
 }
 
 const WrappedFlashlight = wrapEffect(FlashlightEffect);
+const WrappedSpiderVerse = wrapEffect(SpiderVerseEffect);
 
 /* -------------------------------------------------------------------------- */
 /* Pipeline                                                                   */
@@ -114,10 +120,15 @@ export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = fals
   const bloomRef = useRef<{ intensity: number } | null>(null);
   const aberrationRef = useRef<{ offset: THREE.Vector2 } | null>(null);
   const flashRef = useRef<FlashlightEffect | null>(null);
+  const spiderRef = useRef<SpiderVerseEffect | null>(null);
+  const splashes = useRef(new SplashField());
+  const lastSplash = useRef<{ x: number; y: number } | null>(null);
+  const clock = useRef(0);
 
-  useFrame((_, rawDelta) => {
+  useFrame((state, rawDelta) => {
     const frame = getAudioFrame?.() ?? null;
     const pointer = getPointer?.() ?? { x: 0.5, y: 0.5, speed: 0 };
+    clock.current = state.clock.elapsedTime;
     const resolved = resolvePostFX(cfg, {
       loudness: frame?.loudness ?? 0,
       beatPulse: frame?.beatPulse ?? 0,
@@ -136,6 +147,34 @@ export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = fals
       u.get('uAspect')!.value = size.width / Math.max(size.height, 1);
       u.get('uReduced')!.value = reducedMotion ? 1 : 0;
       u.get('uTime')!.value += rawDelta;
+    }
+
+    if (spiderRef.current) {
+      const now = clock.current;
+      const cx = pointer.x;
+      const cy = 1 - pointer.y;
+      // Deposit a splash when the cursor moves far enough (comic splats trail it).
+      if (!reducedMotion) {
+        const prev = lastSplash.current;
+        const moved = prev ? Math.hypot(cx - prev.x, cy - prev.y) : 1;
+        if (moved > 0.03) {
+          splashes.current.add(cx, cy, now);
+          lastSplash.current = { x: cx, y: cy };
+        }
+      }
+      splashes.current.prune(now);
+      const active = splashes.current.active;
+      const u = spiderRef.current.uniformMap;
+      u.get('uAspect')!.value = size.width / Math.max(size.height, 1);
+      (u.get('uResolution')!.value as THREE.Vector2).set(size.width, size.height);
+      u.get('uReduced')!.value = reducedMotion ? 1 : 0;
+      u.get('uCount')!.value = active.length;
+      const pos = u.get('uPos')!.value as THREE.Vector2[];
+      const str = u.get('uStr')!.value as Float32Array;
+      for (let i = 0; i < active.length; i++) {
+        pos[i]!.set(active[i]!.x, active[i]!.y);
+        str[i] = splashes.current.strengthAt(i, now);
+      }
     }
   });
 
@@ -157,6 +196,17 @@ export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = fals
             darken={base.darken}
             radius={base.flashlightRadius}
             feather={base.flashlightFeather}
+          />
+        ) : (
+          <></>
+        )}
+        {base.spiderverse ? (
+          <WrappedSpiderVerse
+            ref={spiderRef as never}
+            radius={DEFAULT_SPIDERVERSE_CONFIG.radius}
+            dotScale={DEFAULT_SPIDERVERSE_CONFIG.dotScale}
+            split={DEFAULT_SPIDERVERSE_CONFIG.split}
+            posterize={DEFAULT_SPIDERVERSE_CONFIG.posterize}
           />
         ) : (
           <></>

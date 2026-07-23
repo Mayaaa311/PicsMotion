@@ -1,6 +1,6 @@
 'use client';
 
-import { FogPlanes, ParticleField, SunlightGlow } from '@interactive-photo/effects';
+import { CursorHalo, FogPlanes, ParticleField, SunlightGlow } from '@interactive-photo/effects';
 import { getPresetEffects } from '@interactive-photo/presets';
 import { CAMERA_DISTANCE } from '@interactive-photo/shared';
 import { useThree } from '@react-three/fiber';
@@ -86,6 +86,14 @@ export function SceneContent({ assetBaseUrl }: SceneContentProps) {
           config={fx.sunlight}
           stage={stage}
           getAudioFrame={getAudioFrame}
+          reducedMotion={reducedMotion}
+        />
+      )}
+      {fx.halo?.enabled !== false && fx.halo && (
+        <CursorHalo
+          config={fx.halo}
+          stage={stage}
+          getPointer={getPointer}
           reducedMotion={reducedMotion}
         />
       )}

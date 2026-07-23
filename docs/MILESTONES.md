@@ -7,7 +7,14 @@
 | 2 | Audio engine | ✅ done |
 | 3 | Soft Nature effects (wind, fog, water, particles, sunlight) | ✅ done |
 | 4 | Nostalgic + Dark (+ postprocessing pipeline) | ✅ done |
-| 5 | Urban + Electronic (inertia, impulses, physics, aberration, trails) | ⏳ next |
+| 5 | Urban (physics/inertia) — Electronic merged in | ⏳ next |
+
+> **Preset rework (user direction, 2026-07-23):** preset set reduced to **4**
+> (Electronic merged into Urban). Soft Nature fog is now interactive (cursor =
+> wind, shaped clear-spots that return gradually); Urban gained a **Spider-Verse**
+> comic effect (halftone + RGB-split splashes along the cursor path); Nostalgic
+> gained a **dwell-halo** (warm light builds where the cursor rests, fades when it
+> leaves); Dark kept. See `packages/effects/{fog,spiderverse,halo}`.
 | 6 | Manual scene editor | ⏳ |
 | 7 | Hosted automatic parsing & completion (real providers) | ⏳ (mock scaffolding in place) |
 | 8 | Publishing | ⏳ |
