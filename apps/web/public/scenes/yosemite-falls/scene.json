@@ -58,8 +58,12 @@
       "audioSensitivity": { "bass": 0.15, "lowMid": 0.05, "highMid": 0, "treble": 0, "beat": 0.05, "loudness": 0.15 },
       "importance": 0.25,
       "locked": true,
-      "revealBudget": { "maxOffsetX": 0.02, "maxOffsetY": 0.02, "confidence": 1 },
-      "provenance": { "visiblePixels": "original", "sourceImageHash": "photo-854" }
+      "revealBudget": { "maxOffsetX": 0.02, "maxOffsetY": 0.02, "confidence": 0.5 },
+      "provenance": {
+        "visiblePixels": "mixed",
+        "sourceImageHash": "photo-854",
+        "completionProvider": "opencv-telea-cpu"
+      }
     },
     {
       "id": "waterfall",
@@ -190,6 +194,6 @@
   ],
   "metadata": {
     "createdAt": "2026-07-23T00:00:00Z",
-    "pipelineVersion": "0.1.0-cpu-separation"
+    "pipelineVersion": "0.2.0-cpu-separation+inpaint"
   }
 }
