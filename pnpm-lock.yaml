@@ -126,10 +126,35 @@ importers:
         version: 5.6.3
 
   packages/effects:
+    dependencies:
+      '@interactive-photo/scene-schema':
+        specifier: workspace:*
+        version: link:../scene-schema
+      '@interactive-photo/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
+      '@react-three/fiber':
+        specifier: 8.17.10
+        version: 8.17.10(@types/react@18.3.11)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.169.0)
+      '@types/react':
+        specifier: ^18.3.11
+        version: 18.3.11
+      '@types/three':
+        specifier: ^0.169.0
+        version: 0.169.0
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      three:
+        specifier: 0.169.0
+        version: 0.169.0
       typescript:
         specifier: ^5.6.3
         version: 5.6.3
+      vitest:
+        specifier: ^2.1.3
+        version: 2.1.3(@types/node@20.16.11)(jsdom@25.0.1)
 
   packages/interaction-engine:
     devDependencies:
@@ -139,10 +164,16 @@ importers:
 
   packages/presets:
     dependencies:
+      '@interactive-photo/effects':
+        specifier: workspace:*
+        version: link:../effects
       '@interactive-photo/scene-schema':
         specifier: workspace:*
         version: link:../scene-schema
     devDependencies:
+      '@types/react':
+        specifier: ^18.3.11
+        version: 18.3.11
       typescript:
         specifier: ^5.6.3
         version: 5.6.3
@@ -152,6 +183,9 @@ importers:
 
   packages/scene-runtime:
     dependencies:
+      '@interactive-photo/effects':
+        specifier: workspace:*
+        version: link:../effects
       '@interactive-photo/presets':
         specifier: workspace:*
         version: link:../presets

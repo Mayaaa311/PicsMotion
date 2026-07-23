@@ -15,7 +15,8 @@
   "dependencies": {
     "@interactive-photo/scene-schema": "workspace:*",
     "@interactive-photo/presets": "workspace:*",
-    "@interactive-photo/shared": "workspace:*"
+    "@interactive-photo/shared": "workspace:*",
+    "@interactive-photo/effects": "workspace:*"
   },
   "peerDependencies": {
     "@react-three/drei": ">=9",

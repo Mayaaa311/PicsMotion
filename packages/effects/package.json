@@ -8,7 +8,24 @@
   "exports": { ".": "./src/index.ts" },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"(no tests yet for @interactive-photo/effects)\""
+    "test": "vitest run"
   },
-  "devDependencies": { "typescript": "^5.6.3" }
+  "dependencies": {
+    "@interactive-photo/scene-schema": "workspace:*",
+    "@interactive-photo/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "@react-three/fiber": ">=8",
+    "react": ">=18",
+    "three": ">=0.160.0"
+  },
+  "devDependencies": {
+    "@react-three/fiber": "8.17.10",
+    "@types/react": "^18.3.11",
+    "@types/three": "^0.169.0",
+    "react": "18.3.1",
+    "three": "0.169.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.3"
+  }
 }

@@ -78,6 +78,28 @@ Key rules:
 - Spotify is a **placeholder adapter only** (`supportsSignalAnalysis = false`);
   the core audio-reactive engine never depends on it (spec §19).
 
+## Effects (Milestone 3)
+
+`packages/effects` holds reusable, framework-light effect modules; presets only
+*configure* them and the runtime never branches on preset name:
+
+- **Material selection** — `planLayerEffects(layer, preset)` maps a layer's tags,
+  role and importance to a material kind (`basic | wind | water`) and a wind
+  stiffness. `LayerPlane` builds the matching material once (never per frame) and
+  updates uniforms via refs.
+- **Wind** (`wind.ts`) — vertex shader bends plant layers away from the cursor with
+  a UV-height bend weight so the base stays anchored; procedural + audio sway. The
+  GLSL math is mirrored by the pure, unit-tested `computeBendAmount`.
+- **Fog / particles / sunlight** (`.tsx`) — R3F components mounted by `SceneContent`
+  from the preset's effect config; all read audio via `getAudioFrame()`.
+- **Water** (`water.ts`) — a bounded `RippleManager` (≤ 8 ripples) feeds a fragment
+  shader that offsets UV sampling by summed decaying radial waves; ripples come
+  from pointer clicks, slow drags and strong beats.
+
+Every effect clamps its intensity, attenuates under reduced motion, disposes its
+GPU resources on unmount, and never recompiles a shader in response to
+pointer/audio updates.
+
 ## AI pipeline (Milestone 7, currently mock)
 
 `apps/ai-service` exposes provider-agnostic adapters behind `Protocol`

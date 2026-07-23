@@ -15,6 +15,9 @@
       ],
       "@interactive-photo/shared": [
         "../shared/src/index.ts"
+      ],
+      "@interactive-photo/effects": [
+        "../effects/src/index.ts"
       ]
     }
   },

@@ -1,11 +1,14 @@
 'use client';
 
+import { FogPlanes, ParticleField, SunlightGlow } from '@interactive-photo/effects';
+import { getPresetEffects } from '@interactive-photo/presets';
 import { CAMERA_DISTANCE } from '@interactive-photo/shared';
 import { useThree } from '@react-three/fiber';
 import { useMemo } from 'react';
 
 import { useRuntime } from '../context';
 import { computeStageSize, visibleWorldSize } from '../math/coordinates';
+import { useRuntimeStore } from '../store';
 import { LayerPlane } from './LayerPlane';
 
 interface SceneContentProps {
@@ -13,12 +16,16 @@ interface SceneContentProps {
 }
 
 /**
- * Computes the contain-fit stage size for the current viewport, then renders the
- * layers back-to-front. Recomputes only when the viewport or camera FOV changes.
+ * Computes the contain-fit stage size for the current viewport, renders the
+ * layers back-to-front, then mounts the ambient effects (fog, particles,
+ * sunlight) configured for the active preset. Recomputes stage only when the
+ * viewport or camera FOV changes.
  */
 export function SceneContent({ assetBaseUrl }: SceneContentProps) {
-  const { scene } = useRuntime();
+  const { scene, preset, getAudioFrame } = useRuntime();
   const size = useThree((s) => s.size);
+  const quality = useRuntimeStore((s) => s.quality);
+  const reducedMotion = useRuntimeStore((s) => s.reducedMotion);
 
   const stage = useMemo(() => {
     const aspect = size.width / Math.max(1, size.height);
@@ -32,6 +39,8 @@ export function SceneContent({ assetBaseUrl }: SceneContentProps) {
     [scene.layers],
   );
 
+  const fx = useMemo(() => getPresetEffects(preset.id), [preset.id]);
+
   return (
     <group>
       {ordered.map((layer, index) => (
@@ -43,6 +52,33 @@ export function SceneContent({ assetBaseUrl }: SceneContentProps) {
           assetBaseUrl={assetBaseUrl}
         />
       ))}
+
+      {fx.fog?.enabled !== false && fx.fog && (
+        <FogPlanes
+          config={fx.fog}
+          stage={stage}
+          getAudioFrame={getAudioFrame}
+          reducedMotion={reducedMotion}
+          quality={quality}
+        />
+      )}
+      {fx.particles?.enabled !== false && fx.particles && (
+        <ParticleField
+          config={fx.particles}
+          stage={stage}
+          getAudioFrame={getAudioFrame}
+          reducedMotion={reducedMotion}
+          quality={quality}
+        />
+      )}
+      {fx.sunlight?.enabled !== false && fx.sunlight && (
+        <SunlightGlow
+          config={fx.sunlight}
+          stage={stage}
+          getAudioFrame={getAudioFrame}
+          reducedMotion={reducedMotion}
+        />
+      )}
     </group>
   );
 }

@@ -10,12 +10,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@interactive-photo/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
       '@interactive-photo/scene-schema': fileURLToPath(
         new URL('../scene-schema/src/index.ts', import.meta.url),
-      ),
-      '@interactive-photo/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
-      '@interactive-photo/effects': fileURLToPath(
-        new URL('../effects/src/index.ts', import.meta.url),
       ),
     },
   },
