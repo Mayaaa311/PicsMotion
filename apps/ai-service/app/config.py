@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     fal_text_segmentation_model: str = "fal-ai/evf-sam"
     fal_matting_model: str = "fal-ai/birefnet/v2"
     fal_depth_model: str = "fal-ai/image-preprocessors/depth-anything/v2"
+    fal_style_model: str = "fal-ai/flux/dev/image-to-image"
 
     # ---- Black Forest Labs ----
     bfl_api_key: str | None = None

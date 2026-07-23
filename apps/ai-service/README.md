@@ -72,6 +72,59 @@ The mock pipeline job advances one stage each time it is polled
 (`queued → scene_analysis → … → packaging → completed`), so a client can
 exercise the full create/poll/complete flow offline.
 
+## Style transfer
+
+`app/stylize.py` restyles every layer PNG in a scene folder into one or more
+art styles, writing outputs the web app reads directly from the scene
+directory:
+
+```
+<sceneDir>/styles/<styleId>/<layerId>.png   # restyled layer, same size + alpha as the source
+<sceneDir>/styles/manifest.json             # { generatedAt, provider, model, styles, layers }
+```
+
+Run it from `apps/ai-service` (mock mode, fully offline, no keys needed):
+
+```bash
+python -m app.stylize ../web/public/scenes/yosemite-falls
+# or a subset of styles:
+python -m app.stylize ../web/public/scenes/yosemite-falls spiderverse ink-sketch
+```
+
+The style catalog (`models/styles.py`) currently has five ids: `spiderverse`,
+`watercolor`, `ink-sketch`, `pop-art`, `oil`. In `AI_PROVIDER_MODE=mock`
+(the default) every style is produced by `MockStyleProvider`
+(`models/style_providers.py`), a deterministic, no-network Pillow pipeline —
+each style applies a distinct posterize/edge/blur/saturation transform and
+always re-preserves the source layer's exact alpha channel.
+
+Outputs are cached: a `<output>.sha` sidecar records
+`sha256(input_bytes + styleId + model)`, so re-running the command only
+regenerates layers whose source bytes, style, or model actually changed.
+
+### Real AI styling
+
+Set `AI_PROVIDER_MODE=live` plus a real key to use an actual image model
+instead of the mock transform:
+
+- `OPENAI_API_KEY` + `OPENAI_IMAGE_MODEL` (default `gpt-image-2`) routes
+  through `OpenAIImageStyleProvider`, which calls
+  `POST https://api.openai.com/v1/images/edits`. **The exact request/response
+  shape was built against docs that were auth-gated at the time and must be
+  re-verified against OpenAI's live documentation before production use.**
+- Otherwise, `FAL_KEY` + `FAL_STYLE_MODEL` (default
+  `fal-ai/flux/dev/image-to-image`) routes through `FalImg2ImgStyleProvider`,
+  a generic fal queue (submit/poll/fetch) adapter. **This endpoint/schema is
+  also unverified against live fal docs and is never exercised by the test
+  suite** — treat it as a starting point, not a finished integration.
+- If `AI_PROVIDER_MODE=live` but neither key is set, `get_style_provider`
+  logs a warning and falls back to the mock provider rather than failing.
+
+No model weights are downloaded and no real network call happens as a side
+effect of importing `app.stylize` or `models.style_providers` — a real
+provider is only constructed, and only makes a request, when
+`stylize_scene`/`StyleProvider.stylize` is explicitly invoked in live mode.
+
 ## Docker
 
 ```bash
@@ -85,9 +138,11 @@ mode.
 ## Layout
 
 ```
-app/          FastAPI app, config, in-memory job store
+app/          FastAPI app, config, in-memory job store, stylize CLI (app/stylize.py)
 schemas/      Pydantic mirror of the shared TypeScript scene schema
-models/       Provider Protocol interfaces, result types, provider factory
+models/       Provider Protocol interfaces, result types, provider factory,
+              style catalog (models/styles.py) and style providers
+              (models/style_providers.py: mock, OpenAI, fal)
 pipelines/    Pipeline stages (scene_analysis, segmentation, matting,
               depth, inpainting, packaging) with mock providers
 tests/        Offline pytest suite
