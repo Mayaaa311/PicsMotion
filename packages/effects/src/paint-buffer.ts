@@ -19,18 +19,20 @@ const COPY_VERT = /* glsl */ `
   void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
 `;
 
-// Diffuse (5-tap) + linear decay. GLSL1 (texture2D / gl_FragColor).
+// Very gentle diffuse (mostly identity so paint stays STRONG for its full life)
+// + linear decay. Heavy per-frame blur compounds 60x/sec and washes paint out,
+// so the centre weight is kept near 1. GLSL1 (texture2D / gl_FragColor).
 const FADE_FRAG = /* glsl */ `
   uniform sampler2D tPrev;
   uniform vec2 uTexel;
   uniform float uDecay;
   varying vec2 vUv;
   void main() {
-    vec4 c = texture2D(tPrev, vUv) * 0.5;
-    c += texture2D(tPrev, vUv + vec2(uTexel.x, 0.0)) * 0.125;
-    c += texture2D(tPrev, vUv - vec2(uTexel.x, 0.0)) * 0.125;
-    c += texture2D(tPrev, vUv + vec2(0.0, uTexel.y)) * 0.125;
-    c += texture2D(tPrev, vUv - vec2(0.0, uTexel.y)) * 0.125;
+    vec4 c = texture2D(tPrev, vUv) * 0.94;
+    c += texture2D(tPrev, vUv + vec2(uTexel.x, 0.0)) * 0.015;
+    c += texture2D(tPrev, vUv - vec2(uTexel.x, 0.0)) * 0.015;
+    c += texture2D(tPrev, vUv + vec2(0.0, uTexel.y)) * 0.015;
+    c += texture2D(tPrev, vUv - vec2(0.0, uTexel.y)) * 0.015;
     gl_FragColor = max(c - uDecay, 0.0);
   }
 `;

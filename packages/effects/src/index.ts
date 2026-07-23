@@ -48,8 +48,10 @@ export type { PostFXConfig, PostFXInput, ResolvedPostFX } from './postfx-config'
 export {
   DEFAULT_SPIDERVERSE_CONFIG,
   interpolateStamps,
+  paletteStops,
   shouldStamp,
   SpiderVerseEffect,
+  SPIDERVERSE_PALETTES,
 } from './spiderverse';
 export type { SpiderVerseConfig, SpiderVerseOptions } from './spiderverse';
 export { PaintAccumulator } from './paint-buffer';

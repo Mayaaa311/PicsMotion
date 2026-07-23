@@ -29,12 +29,15 @@ import { PaintAccumulator } from './paint-buffer';
 import {
   DEFAULT_SPIDERVERSE_CONFIG,
   interpolateStamps,
+  SPIDERVERSE_PALETTES,
   SpiderVerseEffect,
 } from './spiderverse';
 
 const SPIDER = DEFAULT_SPIDERVERSE_CONFIG;
 /** Max stamp radius (UV) at very fast cursor speeds. */
 const SPIDER_MAX_RADIUS = 0.16;
+/** Beat pulse above which the palette advances (rising edge). */
+const BEAT_CYCLE_THRESHOLD = 0.7;
 
 /* -------------------------------------------------------------------------- */
 /* Flashlight effect                                                          */
@@ -129,6 +132,8 @@ export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = fals
   const spiderRef = useRef<SpiderVerseEffect | null>(null);
   const paint = useMemo(() => new PaintAccumulator(1024), []);
   const lastStamp = useRef<{ x: number; y: number } | null>(null);
+  const paletteIndex = useRef(0);
+  const prevBeat = useRef(0);
   useEffect(() => () => paint.dispose(), [paint]);
 
   useFrame((_, rawDelta) => {
@@ -169,11 +174,20 @@ export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = fals
       // Advance the persistent paint buffer every frame (so it keeps fading).
       paint.update(gl, dt, stamps, SPIDER.lifetime, radius);
 
+      // Cycle the comic palette on the rising edge of a strong beat.
+      const beat = frame?.beatPulse ?? 0;
+      if (beat >= BEAT_CYCLE_THRESHOLD && prevBeat.current < BEAT_CYCLE_THRESHOLD) {
+        paletteIndex.current = (paletteIndex.current + 1) % SPIDERVERSE_PALETTES.length;
+        spiderRef.current.setPalette(paletteIndex.current);
+      }
+      prevBeat.current = beat;
+
       const u = spiderRef.current.uniformMap;
       u.get('uPaint')!.value = paint.texture;
       u.get('uHasPaint')!.value = 1;
       (u.get('uResolution')!.value as THREE.Vector2).set(size.width, size.height);
       u.get('uReduced')!.value = reducedMotion ? 1 : 0;
+      u.get('uBeat')!.value = beat;
     }
   });
 

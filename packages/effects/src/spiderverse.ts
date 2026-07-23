@@ -50,6 +50,34 @@ export const DEFAULT_SPIDERVERSE_CONFIG: SpiderVerseConfig = {
   strength: 1.5,
 };
 
+/**
+ * Comic colour palettes (4 stops each, dark → light). The image's luminance is
+ * mapped into these flat fills, so the paint reads as bold comic colour rather
+ * than the photo's own hues. A strong beat cycles to the next palette.
+ */
+export const SPIDERVERSE_PALETTES: Array<{ name: string; stops: [string, string, string, string] }> = [
+  { name: 'Miles', stops: ['#160a34', '#e01e5a', '#ff5ea8', '#48ecff'] },
+  { name: 'Gwen', stops: ['#1a1030', '#ff4d8d', '#2fd6c9', '#f3ecff'] },
+  { name: 'Classic', stops: ['#0a0a1a', '#d81e2c', '#ffd21e', '#ffffff'] },
+  { name: 'Acid', stops: ['#06121a', '#7a2cff', '#17e0a0', '#d6ff3d'] },
+  { name: 'Noir', stops: ['#050509', '#3a3f52', '#9aa3b8', '#ffffff'] },
+];
+
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.slice(0, 2), 16) / 255,
+    parseInt(h.slice(2, 4), 16) / 255,
+    parseInt(h.slice(4, 6), 16) / 255,
+  ];
+}
+
+/** Palette stops as flat [r,g,b] triples in 0..1. */
+export function paletteStops(index: number): Array<[number, number, number]> {
+  const p = SPIDERVERSE_PALETTES[index % SPIDERVERSE_PALETTES.length]!;
+  return p.stops.map(hexToRgb);
+}
+
 /** Pure: should a new stamp be deposited given the previous stamp + cursor (UV)? */
 export function shouldStamp(
   prev: { x: number; y: number } | null,
@@ -95,39 +123,41 @@ const FRAGMENT = /* glsl */ `
   uniform vec2  uResolution;
   uniform float uDotScale;
   uniform float uSplit;
-  uniform float uPosterize;
-  uniform float uSaturation;
   uniform float uReduced;
+  uniform float uBeat;        // 0..1 beat pulse — pops the style
+  uniform vec3  uPal[4];      // comic palette, dark -> light
 
-  vec3 posterize(vec3 c, float levels) { return floor(c * levels + 0.5) / levels; }
-  vec3 saturate3(vec3 c, float s) {
-    float l = dot(c, vec3(0.299, 0.587, 0.114));
-    return clamp(mix(vec3(l), c, 1.0 + s), 0.0, 1.0);
+  float lum3(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+
+  // Map a luminance to a flat comic fill from the current palette.
+  vec3 paletteColor(float l) {
+    float x = clamp(l, 0.0, 0.9999);
+    int idx = int(floor(x * 4.0));
+    if (idx <= 0) return uPal[0];
+    if (idx == 1) return uPal[1];
+    if (idx == 2) return uPal[2];
+    return uPal[3];
   }
 
   void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
     float mask = uHasPaint > 0.5 ? clamp(texture(uPaint, uv).r * uStrength, 0.0, 1.0) : 0.0;
     if (mask <= 0.003) { outputColor = inputColor; return; }
 
-    // Bold RGB "double vision" channel split.
-    float split = uSplit * (0.4 + 0.6 * mask) * (1.0 - uReduced * 0.6);
-    float r = texture(inputBuffer, uv + vec2(split, split * 0.5)).r;
-    float g = inputColor.g;
-    float b = texture(inputBuffer, uv - vec2(split, split * 0.5)).b;
-    vec3 col = vec3(r, g, b);
+    // RGB "double vision" split — ghost the flat comic fills, punchier on a beat.
+    float split = uSplit * (0.5 + 0.5 * mask) * (1.0 - uReduced * 0.6) * (1.0 + uBeat * 1.2);
+    float lR = lum3(texture(inputBuffer, uv + vec2(split, split * 0.5)).rgb);
+    float lG = lum3(inputColor.rgb);
+    float lB = lum3(texture(inputBuffer, uv - vec2(split, split * 0.5)).rgb);
+    vec3 comic = vec3(paletteColor(lR).r, paletteColor(lG).g, paletteColor(lB).b);
 
-    col = saturate3(col, uSaturation);
-    col = posterize(col, max(uPosterize, 2.0));
-
-    // Chunky Ben-Day halftone dots in a rotated screen grid.
+    // Chunky Ben-Day halftone dots, sized by local darkness. Beat boosts contrast.
     float ca = cos(0.4), sa = sin(0.4);
     vec2 rot = mat2(ca, -sa, sa, ca) * (uv * uResolution);
     float cell = max(uDotScale, 0.5) * 6.0;
     vec2 g2 = mod(rot, cell) - cell * 0.5;
-    float lum = dot(col, vec3(0.299, 0.587, 0.114));
-    float dotR = cell * 0.5 * (0.30 + (1.0 - lum) * 0.70);
+    float dotR = cell * 0.5 * (0.30 + (1.0 - lG) * 0.70);
     float dotv = smoothstep(dotR, dotR - 2.0, length(g2));
-    vec3 comic = mix(col * 0.7, col * 1.18, dotv);
+    comic = mix(comic * (0.62 - uBeat * 0.1), comic * (1.15 + uBeat * 0.2), dotv);
 
     outputColor = vec4(mix(inputColor.rgb, comic, mask), inputColor.a);
   }
@@ -136,8 +166,6 @@ const FRAGMENT = /* glsl */ `
 export interface SpiderVerseOptions {
   dotScale?: number;
   split?: number;
-  posterize?: number;
-  saturation?: number;
   strength?: number;
 }
 
@@ -145,6 +173,7 @@ export interface SpiderVerseOptions {
 export class SpiderVerseEffect extends Effect {
   constructor(opts: SpiderVerseOptions = {}) {
     const c = { ...DEFAULT_SPIDERVERSE_CONFIG, ...opts };
+    const pal0 = paletteStops(0).map(([r, g, b]) => new THREE.Vector3(r, g, b));
     super('SpiderVerseEffect', FRAGMENT, {
       blendFunction: BlendFunction.NORMAL,
       uniforms: new Map<string, THREE.Uniform>([
@@ -154,11 +183,18 @@ export class SpiderVerseEffect extends Effect {
         ['uResolution', new THREE.Uniform(new THREE.Vector2(1280, 720))],
         ['uDotScale', new THREE.Uniform(c.dotScale)],
         ['uSplit', new THREE.Uniform(c.split)],
-        ['uPosterize', new THREE.Uniform(c.posterize)],
-        ['uSaturation', new THREE.Uniform(c.saturation)],
         ['uReduced', new THREE.Uniform(0)],
+        ['uBeat', new THREE.Uniform(0)],
+        ['uPal', new THREE.Uniform(pal0)],
       ]),
     });
+  }
+
+  /** Swap the active comic palette (0-based index into SPIDERVERSE_PALETTES). */
+  setPalette(index: number): void {
+    const stops = paletteStops(index);
+    const pal = this.uniforms.get('uPal')!.value as THREE.Vector3[];
+    for (let i = 0; i < 4; i++) pal[i]!.set(stops[i]![0], stops[i]![1], stops[i]![2]);
   }
 
   get uniformMap(): Map<string, THREE.Uniform> {

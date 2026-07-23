@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import { interpolateStamps, shouldStamp } from './spiderverse';
+import { interpolateStamps, paletteStops, shouldStamp, SPIDERVERSE_PALETTES } from './spiderverse';
+
+describe('palettes', () => {
+  it('ships several 4-stop palettes', () => {
+    expect(SPIDERVERSE_PALETTES.length).toBeGreaterThanOrEqual(3);
+    for (const p of SPIDERVERSE_PALETTES) expect(p.stops).toHaveLength(4);
+  });
+  it('paletteStops returns 4 rgb triples in 0..1 and wraps the index', () => {
+    const s = paletteStops(0);
+    expect(s).toHaveLength(4);
+    for (const [r, g, b] of s) {
+      for (const c of [r, g, b]) {
+        expect(c).toBeGreaterThanOrEqual(0);
+        expect(c).toBeLessThanOrEqual(1);
+      }
+    }
+    // wraps
+    expect(paletteStops(SPIDERVERSE_PALETTES.length)).toEqual(paletteStops(0));
+  });
+});
 
 describe('shouldStamp', () => {
   it('always stamps when there is no previous stamp', () => {
