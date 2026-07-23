@@ -8,7 +8,6 @@ export const presetNameSchema = z.enum([
   'soft-nature',
   'urban',
   'dark',
-  'electronic',
   'nostalgic',
 ]);
 export type PresetName = z.infer<typeof presetNameSchema>;

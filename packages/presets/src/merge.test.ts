@@ -7,7 +7,7 @@ describe('presets', () => {
     for (const [key, preset] of Object.entries(presets)) {
       expect(preset.id).toBe(key);
     }
-    expect(Object.keys(presets)).toHaveLength(5);
+    expect(Object.keys(presets)).toHaveLength(4);
   });
 });
 
@@ -39,8 +39,8 @@ describe('mergePreset', () => {
   });
 
   it('does not mutate the base preset', () => {
-    const before = JSON.stringify(getPreset('electronic'));
-    mergePreset('electronic', { camera: { shakeStrength: 999 } });
-    expect(JSON.stringify(getPreset('electronic'))).toBe(before);
+    const before = JSON.stringify(getPreset('dark'));
+    mergePreset('dark', { camera: { shakeStrength: 999 } });
+    expect(JSON.stringify(getPreset('dark'))).toBe(before);
   });
 });

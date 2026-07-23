@@ -22,7 +22,7 @@ from pydantic.alias_generators import to_camel
 SCENE_SCHEMA_VERSION = "1.0"
 ASPECT_RATIO_TOLERANCE = 0.02
 
-PresetName = Literal["soft-nature", "urban", "dark", "electronic", "nostalgic"]
+PresetName = Literal["soft-nature", "urban", "dark", "nostalgic"]
 LayerRole = Literal[
     "background",
     "distant",

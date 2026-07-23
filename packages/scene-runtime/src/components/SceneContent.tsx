@@ -22,10 +22,19 @@ interface SceneContentProps {
  * viewport or camera FOV changes.
  */
 export function SceneContent({ assetBaseUrl }: SceneContentProps) {
-  const { scene, preset, getAudioFrame } = useRuntime();
+  const { scene, preset, getAudioFrame, pointerRef } = useRuntime();
   const size = useThree((s) => s.size);
   const quality = useRuntimeStore((s) => s.quality);
   const reducedMotion = useRuntimeStore((s) => s.reducedMotion);
+
+  const getPointer = useMemo(
+    () => () => ({
+      x: pointerRef.current.imageSpace.x,
+      y: pointerRef.current.imageSpace.y,
+      speed: pointerRef.current.speed,
+    }),
+    [pointerRef],
+  );
 
   const stage = useMemo(() => {
     const aspect = size.width / Math.max(1, size.height);
@@ -58,6 +67,7 @@ export function SceneContent({ assetBaseUrl }: SceneContentProps) {
           config={fx.fog}
           stage={stage}
           getAudioFrame={getAudioFrame}
+          getPointer={getPointer}
           reducedMotion={reducedMotion}
           quality={quality}
         />

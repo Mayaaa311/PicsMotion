@@ -43,8 +43,8 @@ test.describe('Soft Nature demo', () => {
     await page.goto('/demo/soft-nature');
     await expect(page.getByTestId('interactive-scene')).toBeVisible({ timeout: 30_000 });
 
-    await page.getByRole('button', { name: 'Electronic / Energetic' }).click();
-    await expect(page.getByTestId('debug-preset')).toHaveText('electronic');
+    await page.getByRole('button', { name: 'Urban / Spider-Verse' }).click();
+    await expect(page.getByTestId('debug-preset')).toHaveText('urban');
   });
 
   test('every preset renders without console errors (postprocessing paths)', async ({ page }) => {
@@ -59,12 +59,11 @@ test.describe('Soft Nature demo', () => {
       timeout: 30_000,
     });
 
-    // Dark (flashlight), Nostalgic (paper), Electronic (bloom+aberration), Urban.
+    // Dark (flashlight), Nostalgic (paper+halo), Urban (Spider-Verse), Soft Nature.
     for (const [label, id] of [
       ['Dark / Mysterious', 'dark'],
       ['Nostalgic / Folk', 'nostalgic'],
-      ['Electronic / Energetic', 'electronic'],
-      ['Urban / Hip-Hop', 'urban'],
+      ['Urban / Spider-Verse', 'urban'],
       ['Soft Nature', 'soft-nature'],
     ] as const) {
       await page.getByRole('button', { name: label }).click();
