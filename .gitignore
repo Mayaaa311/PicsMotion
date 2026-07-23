@@ -50,3 +50,10 @@ Thumbs.db
 .data/
 tmp/
 *.zip
+
+# ---- Local, unlicensed test audio (do NOT commit copyrighted tracks) ----
+music/
+*.mp3
+*.wav
+*.flac
+*.m4a
