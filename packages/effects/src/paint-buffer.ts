@@ -14,9 +14,19 @@
  */
 import * as THREE from 'three';
 
+// Fullscreen quad (geometry already spans clip space -1..1).
 const COPY_VERT = /* glsl */ `
   varying vec2 vUv;
   void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+`;
+
+// Stamp quad placed at a clip-space centre with a clip-space size. Uses uniforms
+// (NOT the model matrix) so each stamp lands exactly under the cursor.
+const STAMP_VERT = /* glsl */ `
+  uniform vec2 uCenter;
+  uniform float uSize;
+  varying vec2 vUv;
+  void main() { vUv = uv; gl_Position = vec4(uCenter + position.xy * uSize, 0.0, 1.0); }
 `;
 
 // Very gentle diffuse (mostly identity so paint stays STRONG for its full life)
@@ -96,12 +106,16 @@ export class PaintAccumulator {
     this.scene.add(this.fadeQuad);
 
     this.stampMat = new THREE.ShaderMaterial({
-      vertexShader: COPY_VERT,
+      vertexShader: STAMP_VERT,
       fragmentShader: STAMP_FRAG,
       transparent: true,
       depthTest: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
+      uniforms: {
+        uCenter: { value: new THREE.Vector2() },
+        uSize: { value: 0.1 },
+      },
     });
     this.stampMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.stampMat);
     this.stampMesh.frustumCulled = false;
@@ -152,13 +166,13 @@ export class PaintAccumulator {
     gl.setRenderTarget(write);
     gl.render(this.scene, this.cam);
 
-    // 2) additive stamps into write
+    // 2) additive stamps into write, each placed under the cursor via uniforms
     if (stamps.length > 0) {
-      const s = stampRadius * 4; // plane is 1u; NDC span 2 == full uv
-      this.stampMesh.scale.set(s, s, 1);
+      // uv radius r → clip half-size 2r; geometry is 1u so uSize = 4r.
+      this.stampMat.uniforms.uSize!.value = stampRadius * 4;
+      const center = this.stampMat.uniforms.uCenter!.value as THREE.Vector2;
       for (const p of stamps) {
-        this.stampMesh.position.set(p.x * 2 - 1, p.y * 2 - 1, 0);
-        this.stampMesh.updateMatrixWorld();
+        center.set(p.x * 2 - 1, p.y * 2 - 1);
         gl.render(this.stampScene, this.cam);
       }
     }

@@ -61,6 +61,7 @@ export function InteractiveScene({
 
   const quality = useRuntimeStore((s) => s.quality);
   const reducedMotion = useRuntimeStore((s) => s.reducedMotion);
+  const spiderPalette = useRuntimeStore((s) => s.spiderPalette);
   const setPaused = useRuntimeStore((s) => s.setPaused);
   useSyncReducedMotion();
 
@@ -111,6 +112,7 @@ export function InteractiveScene({
               getAudioFrame={getAudioFrame}
               getPointer={getPointer}
               reducedMotion={reducedMotion}
+              spiderPalette={spiderPalette}
             />
           )}
         </RuntimeProvider>

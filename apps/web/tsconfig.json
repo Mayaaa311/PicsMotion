@@ -1,22 +1,51 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "preserve",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowJs": true,
     "noEmit": true,
     "incremental": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
-      "@/*": ["./*"],
-      "@interactive-photo/scene-runtime": ["../../packages/scene-runtime/src/index.ts"],
-      "@interactive-photo/scene-schema": ["../../packages/scene-schema/src/index.ts"],
-      "@interactive-photo/presets": ["../../packages/presets/src/index.ts"],
-      "@interactive-photo/shared": ["../../packages/shared/src/index.ts"]
+      "@/*": [
+        "./*"
+      ],
+      "@interactive-photo/scene-runtime": [
+        "../../packages/scene-runtime/src/index.ts"
+      ],
+      "@interactive-photo/scene-schema": [
+        "../../packages/scene-schema/src/index.ts"
+      ],
+      "@interactive-photo/presets": [
+        "../../packages/presets/src/index.ts"
+      ],
+      "@interactive-photo/shared": [
+        "../../packages/shared/src/index.ts"
+      ],
+      "@interactive-photo/effects": [
+        "../../packages/effects/src/index.ts"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "tests/e2e"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests/e2e"
+  ]
 }

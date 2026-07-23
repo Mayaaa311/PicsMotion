@@ -1,8 +1,9 @@
 'use client';
 
 import { useAudioEngine } from '@interactive-photo/audio-engine';
+import { SPIDERVERSE_PALETTES } from '@interactive-photo/effects';
 import { presets } from '@interactive-photo/presets';
-import { loadScene } from '@interactive-photo/scene-runtime';
+import { loadScene, useRuntimeStore } from '@interactive-photo/scene-runtime';
 import type { PresetName, SceneDocument } from '@interactive-photo/scene-schema';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -26,6 +27,8 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
   const [error, setError] = useState<string | null>(null);
   const [preset, setPreset] = useState<PresetName>(initialPreset);
   const { engine } = useAudioEngine();
+  const spiderPalette = useRuntimeStore((s) => s.spiderPalette);
+  const setSpiderPalette = useRuntimeStore((s) => s.setSpiderPalette);
 
   // The scene pulls normalized audio values imperatively each render frame.
   // Return null until a source is actually analysable, so the runtime skips all
@@ -102,6 +105,32 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
                 {presets[name].displayName}
               </button>
             ))}
+
+            {/* Spider-Verse comic palette (Urban only). Auto cycles on beats. */}
+            {preset === 'urban' && (
+              <div className="mt-2 flex flex-col gap-1 border-t border-white/10 pt-2">
+                <span className="px-1 font-mono text-[11px] uppercase tracking-wide text-slate-400">
+                  Comic palette
+                </span>
+                {[{ label: 'Auto (beats)', i: -1 }, ...SPIDERVERSE_PALETTES.map((p, i) => ({ label: p.name, i }))].map(
+                  ({ label, i }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => setSpiderPalette(i)}
+                      aria-pressed={spiderPalette === i}
+                      className={`rounded px-3 py-1 text-left text-xs transition ${
+                        spiderPalette === i
+                          ? 'bg-mist text-ink'
+                          : 'bg-white/5 text-slate-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
           </div>
 
           <AudioControls engine={engine} />

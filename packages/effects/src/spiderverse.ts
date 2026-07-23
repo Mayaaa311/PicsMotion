@@ -42,7 +42,7 @@ export const DEFAULT_SPIDERVERSE_CONFIG: SpiderVerseConfig = {
   enabled: true,
   spacing: 0.02,
   stampRadius: 0.055,
-  lifetime: 60,
+  lifetime: 80,
   dotScale: 2.6,
   split: 0.012,
   posterize: 5,

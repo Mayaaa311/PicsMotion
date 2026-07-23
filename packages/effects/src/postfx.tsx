@@ -113,9 +113,17 @@ export interface PostFXProps {
   /** Cursor accessor in normalized [0,1] image space (origin top-left). */
   getPointer?: () => { x: number; y: number; speed: number };
   reducedMotion?: boolean;
+  /** Spider-Verse palette: -1 = auto (cycle on beats), 0..N = fixed. */
+  spiderPalette?: number;
 }
 
-export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = false }: PostFXProps) {
+export function PostFX({
+  config,
+  getAudioFrame,
+  getPointer,
+  reducedMotion = false,
+  spiderPalette = -1,
+}: PostFXProps) {
   const cfg = useMemo<PostFXConfig>(() => ({ ...DEFAULT_POSTFX_CONFIG, ...config }), [config]);
   const size = useThree((s) => s.size);
   const gl = useThree((s) => s.gl);
@@ -174,9 +182,15 @@ export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = fals
       // Advance the persistent paint buffer every frame (so it keeps fading).
       paint.update(gl, dt, stamps, SPIDER.lifetime, radius);
 
-      // Cycle the comic palette on the rising edge of a strong beat.
+      // Palette: a fixed index (manual pick) overrides beat cycling.
       const beat = frame?.beatPulse ?? 0;
-      if (beat >= BEAT_CYCLE_THRESHOLD && prevBeat.current < BEAT_CYCLE_THRESHOLD) {
+      if (spiderPalette >= 0) {
+        if (paletteIndex.current !== spiderPalette) {
+          paletteIndex.current = spiderPalette;
+          spiderRef.current.setPalette(spiderPalette);
+        }
+      } else if (beat >= BEAT_CYCLE_THRESHOLD && prevBeat.current < BEAT_CYCLE_THRESHOLD) {
+        // Auto: cycle on the rising edge of a strong beat.
         paletteIndex.current = (paletteIndex.current + 1) % SPIDERVERSE_PALETTES.length;
         spiderRef.current.setPalette(paletteIndex.current);
       }

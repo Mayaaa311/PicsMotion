@@ -18,12 +18,15 @@ export interface RuntimeState {
   reducedMotion: boolean;
   paused: boolean;
   muted: boolean;
+  /** Spider-Verse comic palette: -1 = auto (cycle on beats), 0..N = fixed. */
+  spiderPalette: number;
   debug: DebugSnapshot;
 
   setQuality: (q: QualityLevel) => void;
   setReducedMotion: (v: boolean) => void;
   setPaused: (v: boolean) => void;
   setMuted: (v: boolean) => void;
+  setSpiderPalette: (i: number) => void;
   /** Merge a partial debug snapshot (called at low frequency, not every frame). */
   updateDebug: (patch: Partial<DebugSnapshot>) => void;
 }
@@ -33,6 +36,7 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
   reducedMotion: false,
   paused: false,
   muted: true,
+  spiderPalette: -1,
   debug: {
     fps: 0,
     pointerImageSpace: { x: 0.5, y: 0.5 },
@@ -46,5 +50,6 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
   setReducedMotion: (reducedMotion) => set({ reducedMotion }),
   setPaused: (paused) => set({ paused }),
   setMuted: (muted) => set({ muted }),
+  setSpiderPalette: (spiderPalette) => set({ spiderPalette }),
   updateDebug: (patch) => set((s) => ({ debug: { ...s.debug, ...patch } })),
 }));
