@@ -61,8 +61,10 @@ export const presetEffects: Record<PresetName, PresetEffects> = {
     sunlight: { enabled: false },
     water: { enabled: false },
     post: {
+      // The obscuring cursor "paint" overlay was removed — the comic look now
+      // lives in the AI Art-style picker ("Spider-Verse Comic"), which restyles
+      // the actual image while keeping it visible.
       enabled: true,
-      spiderverse: true,
       bloom: 0.18,
       bloomAudio: 0.5,
       maxBloom: 1.6,

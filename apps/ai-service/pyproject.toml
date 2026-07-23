@@ -37,6 +37,10 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "W"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency-injection markers are meant to be called in argument defaults.
+extend-immutable-calls = ["fastapi.File", "fastapi.Form", "fastapi.Depends", "fastapi.Query"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

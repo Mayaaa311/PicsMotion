@@ -7,6 +7,7 @@ use :func:`mask_secret` when reporting configuration.
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from typing import Literal
 
@@ -94,6 +95,16 @@ class Settings(BaseSettings):
     ai_provider_mode: ProviderMode = "mock"
     max_daily_ai_cost_usd: float = Field(default=5.0, ge=0)
     max_candidates_per_region: int = Field(default=1, ge=1)
+
+    # Where processed scenes are written so the web app can serve them. Defaults
+    # to the web app's public scenes dir for local dev (shared filesystem).
+    scenes_output_dir: str = Field(
+        default=str(
+            os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..", "web", "public", "scenes")
+            )
+        )
+    )
 
     @property
     def is_mock_mode(self) -> bool:

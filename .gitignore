@@ -60,3 +60,5 @@ music/
 
 # ---- Generated AI style variants (regenerate via `python -m app.stylize`) ----
 apps/web/public/scenes/*/styles/
+apps/web/public/scenes/gallery/
+apps/web/public/scenes/uploads/

@@ -1,7 +1,6 @@
 'use client';
 
 import { useAudioEngine } from '@interactive-photo/audio-engine';
-import { SPIDERVERSE_PALETTES } from '@interactive-photo/effects';
 import { presets } from '@interactive-photo/presets';
 import { loadScene, useRuntimeStore } from '@interactive-photo/scene-runtime';
 import type { PresetName, SceneDocument } from '@interactive-photo/scene-schema';
@@ -10,8 +9,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AudioControls } from './AudioControls';
 import { InteractiveSceneDynamic } from './InteractiveSceneDynamic';
 
-const SCENE_DIR = '/scenes/yosemite-falls';
+const DEFAULT_SCENE_DIR = '/scenes/yosemite-falls';
+const GALLERY_INDEX = '/scenes/gallery/index.json';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 const PRESET_NAMES = Object.keys(presets) as PresetName[];
+
+interface GalleryItem {
+  id: string;
+  title: string;
+  preview: string;
+  aspect: number;
+}
 
 interface DemoSceneProps {
   initialPreset: PresetName;
@@ -27,11 +35,27 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
   const [error, setError] = useState<string | null>(null);
   const [preset, setPreset] = useState<PresetName>(initialPreset);
   const { engine } = useAudioEngine();
-  const spiderPalette = useRuntimeStore((s) => s.spiderPalette);
-  const setSpiderPalette = useRuntimeStore((s) => s.setSpiderPalette);
   const activeStyle = useRuntimeStore((s) => s.activeStyle);
   const setActiveStyle = useRuntimeStore((s) => s.setActiveStyle);
   const [styles, setStyles] = useState<Array<{ id: string; displayName: string }>>([]);
+
+  // Which processed scene is loaded, the photo gallery, and intake UI state.
+  const [sceneDir, setSceneDir] = useState(DEFAULT_SCENE_DIR);
+  const [gallery, setGallery] = useState<GalleryItem[]>([]);
+  const [showPhotos, setShowPhotos] = useState(false);
+  const [uploadState, setUploadState] = useState<'idle' | 'processing' | 'error'>('idle');
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+
+  const chooseScene = useCallback(
+    (dir: string) => {
+      setActiveStyle(null); // styles are per-scene
+      setScene(null);
+      setError(null);
+      setSceneDir(dir);
+      setShowPhotos(false);
+    },
+    [setActiveStyle],
+  );
 
   // The scene pulls normalized audio values imperatively each render frame.
   // Return null until a source is actually analysable, so the runtime skips all
@@ -43,7 +67,7 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
 
   useEffect(() => {
     let cancelled = false;
-    loadScene(`${SCENE_DIR}/scene.json`)
+    loadScene(`${sceneDir}/scene.json`)
       .then((doc) => {
         if (!cancelled) setScene(doc);
       })
@@ -53,23 +77,71 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [sceneDir]);
 
-  // Load the AI style manifest for this scene, if styles have been generated.
+  // Load the AI style manifest for the current scene, if styles were generated.
   useEffect(() => {
     let cancelled = false;
-    fetch(`${SCENE_DIR}/styles/manifest.json`)
+    setStyles([]);
+    fetch(`${sceneDir}/styles/manifest.json`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data: { styles?: Array<{ id: string; displayName: string }> }) => {
         if (!cancelled) setStyles(data.styles ?? []);
       })
       .catch(() => {
-        /* no styles generated yet — the picker just won't show */
+        /* no styles for this scene */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sceneDir]);
+
+  // Load the pre-processed photo gallery once.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(GALLERY_INDEX)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((data: { scenes?: GalleryItem[] }) => {
+        if (!cancelled) setGallery(data.scenes ?? []);
+      })
+      .catch(() => {
+        /* gallery not generated — run scripts/gen-gallery.py */
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // Upload a photo → the AI service separates it into layers → load that scene.
+  const onUpload = useCallback(
+    async (fileList: FileList | null) => {
+      const file = fileList?.[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        setUploadState('error');
+        setUploadMsg('Please choose an image file.');
+        return;
+      }
+      setUploadState('processing');
+      setUploadMsg('Separating layers…');
+      try {
+        const body = new FormData();
+        body.append('file', file);
+        const res = await fetch(`${API_BASE}/scenes/process`, { method: 'POST', body });
+        if (!res.ok) throw new Error(`Server ${res.status}`);
+        const data = (await res.json()) as { baseUrl: string };
+        setUploadState('idle');
+        setUploadMsg(null);
+        chooseScene(data.baseUrl.replace(/\/$/, ''));
+      } catch (e) {
+        setUploadState('error');
+        setUploadMsg(
+          `Couldn't process the photo. Is the AI service running on ${API_BASE}? (${e instanceof Error ? e.message : e})`,
+        );
+      }
+    },
+    [chooseScene],
+  );
 
   // Apply the selected preset to the loaded scene (immutably).
   const activeScene = useMemo<SceneDocument | null>(
@@ -94,7 +166,7 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
         <>
           <InteractiveSceneDynamic
             scene={activeScene}
-            assetBaseUrl={`${SCENE_DIR}/`}
+            assetBaseUrl={`${sceneDir}/`}
             showDebug
             getAudioFrame={getAudioFrame}
           />
@@ -125,32 +197,6 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
               </button>
             ))}
 
-            {/* Spider-Verse comic palette (Urban only). Auto cycles on beats. */}
-            {preset === 'urban' && (
-              <div className="mt-2 flex flex-col gap-1 border-t border-white/10 pt-2">
-                <span className="px-1 font-mono text-[11px] uppercase tracking-wide text-slate-400">
-                  Comic palette
-                </span>
-                {[{ label: 'Auto (beats)', i: -1 }, ...SPIDERVERSE_PALETTES.map((p, i) => ({ label: p.name, i }))].map(
-                  ({ label, i }) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => setSpiderPalette(i)}
-                      aria-pressed={spiderPalette === i}
-                      className={`rounded px-3 py-1 text-left text-xs transition ${
-                        spiderPalette === i
-                          ? 'bg-mist text-ink'
-                          : 'bg-white/5 text-slate-200 hover:bg-white/10'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ),
-                )}
-              </div>
-            )}
-
             {/* AI art style — restyles the actual layers (needs generated styles). */}
             {styles.length > 0 && (
               <div className="mt-2 flex flex-col gap-1 border-t border-white/10 pt-2">
@@ -172,6 +218,73 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
                     {s.displayName}
                   </button>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Photo source: choose from the folder or upload + process. */}
+          <div className="absolute left-1/2 top-3 flex -translate-x-1/2 flex-col items-center gap-2">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPhotos((v) => !v)}
+                className="rounded-lg border border-white/10 bg-black/60 px-3 py-1.5 text-sm text-slate-100 backdrop-blur hover:bg-white/10"
+              >
+                {showPhotos ? 'Close' : 'Choose photo'}
+              </button>
+              <label className="cursor-pointer rounded-lg border border-white/10 bg-black/60 px-3 py-1.5 text-sm text-slate-100 backdrop-blur hover:bg-white/10">
+                {uploadState === 'processing' ? 'Processing…' : 'Upload photo'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={uploadState === 'processing'}
+                  onChange={(e) => void onUpload(e.target.files)}
+                />
+              </label>
+            </div>
+            {uploadMsg && (
+              <p
+                role={uploadState === 'error' ? 'alert' : 'status'}
+                className={`max-w-xs rounded bg-black/60 px-2 py-1 text-xs backdrop-blur ${
+                  uploadState === 'error' ? 'text-red-300' : 'text-slate-300'
+                }`}
+              >
+                {uploadMsg}
+              </p>
+            )}
+
+            {showPhotos && (
+              <div className="max-h-[70vh] w-[19rem] overflow-y-auto rounded-lg border border-white/10 bg-black/70 p-2 backdrop-blur">
+                <p className="px-1 pb-2 font-mono text-[11px] uppercase tracking-wide text-slate-400">
+                  {gallery.length ? `${gallery.length} photos` : 'Run scripts/gen-gallery.py'}
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => chooseScene(DEFAULT_SCENE_DIR)}
+                    className="col-span-3 rounded bg-white/5 px-2 py-1 text-left text-xs text-slate-200 hover:bg-white/10"
+                  >
+                    ★ Yosemite (layer-separated demo)
+                  </button>
+                  {gallery.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => chooseScene(`/scenes/gallery/${g.id}`)}
+                      className="overflow-hidden rounded border border-white/10 hover:border-mist"
+                      title={g.title}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/scenes/${g.preview}`}
+                        alt={g.title}
+                        loading="lazy"
+                        className="aspect-square h-full w-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>

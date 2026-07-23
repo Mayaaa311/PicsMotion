@@ -52,6 +52,30 @@ for (const { preset, action } of CASES) {
   });
 }
 
+// Capture the photo gallery + a picked photo + clean Urban (no paint overlay).
+test('capture gallery flow', async ({ page }) => {
+  await page.goto('/demo/soft-nature');
+  await expect(page.getByTestId('interactive-scene').locator('canvas')).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.waitForTimeout(1000);
+  await page.getByRole('button', { name: 'Choose photo' }).click();
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: `${OUT}/gallery-open.png` });
+
+  const thumbs = page.locator('button:has(img[alt])');
+  const n = await thumbs.count();
+  if (n > 0) {
+    await thumbs.nth(Math.min(4, n - 1)).click();
+    await page.waitForTimeout(2500);
+    await page.screenshot({ path: `${OUT}/gallery-picked.png` });
+  }
+
+  await page.getByRole('button', { name: 'Urban / Spider-Verse' }).click();
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${OUT}/urban-clean.png` });
+});
+
 // Capture the AI art-style cross-fade (if styles were generated for the scene).
 for (const style of ['Spider-Verse Comic', 'Watercolor Painting', 'Ink Sketch'] as const) {
   test(`capture style ${style}`, async ({ page }) => {
