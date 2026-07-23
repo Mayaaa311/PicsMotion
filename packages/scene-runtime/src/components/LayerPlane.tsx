@@ -17,7 +17,7 @@ import { damp } from '@interactive-photo/shared';
 import { useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
-import { useEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 import { useRuntime } from '../context';
@@ -55,7 +55,8 @@ const RIPPLE_BEAT_INTERVAL = 0.5;
  */
 export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProps) {
   const { preset, pointerRef, getAudioFrame } = useRuntime();
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
+  const activeStyle = useRuntimeStore((s) => s.activeStyle);
 
   const url = assetBaseUrl + layer.assetUrl;
   const texture = useTexture(url);
@@ -136,8 +137,8 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProp
   };
 
   useFrame((state, rawDelta) => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
+    const group = groupRef.current;
+    if (!group) return;
     const { paused, reducedMotion } = useRuntimeStore.getState();
     if (paused) return;
 
@@ -151,8 +152,9 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProp
 
     // Damp toward the target offset for smooth, frame-rate-independent motion.
     // Note: pointer y grows downward; negate so layers rise as the cursor rises.
-    mesh.position.x = damp(mesh.position.x, center.x + target.x, 6, dt);
-    mesh.position.y = damp(mesh.position.y, center.y - target.y, 6, dt);
+    // Transform lives on the group so the base + styled overlay move together.
+    group.position.x = damp(group.position.x, center.x + target.x, 6, dt);
+    group.position.y = damp(group.position.y, center.y - target.y, 6, dt);
 
     // Subtle audio-reactive scale pulse, weighted by this layer's authored
     // sensitivity. Bounded so the subject never throbs distractingly.
@@ -164,8 +166,8 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProp
       const pulse = (reducedMotion ? 0.25 : 1) * Math.min(energy, 1.5) * 0.03; // <=~4.5%
       targetScale = layer.baseScale * (1 + pulse);
     }
-    const nextScale = damp(mesh.scale.x, targetScale, 8, dt);
-    mesh.scale.setScalar(nextScale);
+    const nextScale = damp(group.scale.x, targetScale, 8, dt);
+    group.scale.setScalar(nextScale);
 
     if (!isShader) return;
     const shader = material as THREE.ShaderMaterial;
@@ -201,24 +203,81 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProp
   });
 
   return (
-    <mesh
-      ref={meshRef}
-      position={[center.x, center.y, z]}
-      renderOrder={index}
-      rotation={[0, 0, layer.baseRotation]}
-      scale={layer.baseScale}
-      material={material}
-      onPointerDown={(e) => spawnRipple(e)}
-      onPointerMove={(e) => {
-        // Slow drags trail ripples across the surface, rate-limited (render clock).
-        if (!plan.rippleEnabled || !pointerRef.current.isDown) return;
-        const t = clockRef.current;
-        if (t - lastDragRipple.current < RIPPLE_DRAG_INTERVAL) return;
-        lastDragRipple.current = t;
-        spawnRipple(e, 0.008);
-      }}
-    >
+    <group ref={groupRef} position={[center.x, center.y, z]} scale={layer.baseScale}>
+      <mesh
+        renderOrder={index}
+        rotation={[0, 0, layer.baseRotation]}
+        material={material}
+        onPointerDown={(e) => spawnRipple(e)}
+        onPointerMove={(e) => {
+          // Slow drags trail ripples across the surface, rate-limited (render clock).
+          if (!plan.rippleEnabled || !pointerRef.current.isDown) return;
+          const t = clockRef.current;
+          if (t - lastDragRipple.current < RIPPLE_DRAG_INTERVAL) return;
+          lastDragRipple.current = t;
+          spawnRipple(e, 0.008);
+        }}
+      >
+        <planeGeometry args={[size.width, size.height]} />
+      </mesh>
+
+      {/* AI art-style overlay: the restyled version of this layer, cross-faded in.
+          Keyed by style so switching remounts + fades from 0. Kept in the same
+          group so it inherits depth + parallax. */}
+      {activeStyle && (
+        <Suspense fallback={null}>
+          <StyledOverlay
+            key={activeStyle}
+            url={`${assetBaseUrl}styles/${activeStyle}/${layer.id}.png`}
+            size={size}
+            renderOrder={index}
+            rotation={layer.baseRotation}
+            targetOpacity={layer.baseOpacity}
+          />
+        </Suspense>
+      )}
+    </group>
+  );
+}
+
+interface StyledOverlayProps {
+  url: string;
+  size: Size;
+  renderOrder: number;
+  rotation: number;
+  targetOpacity: number;
+}
+
+/** Restyled copy of a layer that fades in over the base (same geometry/position). */
+function StyledOverlay({ url, size, renderOrder, rotation, targetOpacity }: StyledOverlayProps) {
+  const texture = useTexture(url);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  useMemo(() => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
+    texture.needsUpdate = true;
+  }, [texture]);
+
+  useFrame((_, rawDelta) => {
+    const m = matRef.current;
+    if (!m) return;
+    if (useRuntimeStore.getState().paused) return;
+    m.opacity = damp(m.opacity, targetOpacity, 4, Math.min(rawDelta, 1 / 30));
+  });
+
+  return (
+    // Small z nudge so it sits just in front of the base at the same depth.
+    <mesh renderOrder={renderOrder + 1} rotation={[0, 0, rotation]} position={[0, 0, 0.003]}>
       <planeGeometry args={[size.width, size.height]} />
+      <meshBasicMaterial
+        ref={matRef}
+        map={texture}
+        transparent
+        opacity={0}
+        depthWrite={false}
+        toneMapped={false}
+        side={THREE.FrontSide}
+      />
     </mesh>
   );
 }

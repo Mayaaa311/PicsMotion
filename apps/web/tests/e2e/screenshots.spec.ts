@@ -51,3 +51,18 @@ for (const { preset, action } of CASES) {
     await page.screenshot({ path: `${OUT}/${preset}.png` });
   });
 }
+
+// Capture the AI art-style cross-fade (if styles were generated for the scene).
+for (const style of ['Spider-Verse Comic', 'Watercolor Painting', 'Ink Sketch'] as const) {
+  test(`capture style ${style}`, async ({ page }) => {
+    await page.goto('/demo/soft-nature');
+    await expect(page.getByTestId('interactive-scene').locator('canvas')).toBeVisible({
+      timeout: 30_000,
+    });
+    const btn = page.getByRole('button', { name: style, exact: true });
+    if ((await btn.count()) === 0) test.skip(true, 'styles not generated');
+    await btn.click();
+    await page.waitForTimeout(1800); // let the cross-fade settle
+    await page.screenshot({ path: `${OUT}/style-${style.split(' ')[0]!.toLowerCase()}.png` });
+  });
+}

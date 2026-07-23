@@ -57,3 +57,6 @@ music/
 *.wav
 *.flac
 *.m4a
+
+# ---- Generated AI style variants (regenerate via `python -m app.stylize`) ----
+apps/web/public/scenes/*/styles/

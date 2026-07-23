@@ -20,6 +20,8 @@ export interface RuntimeState {
   muted: boolean;
   /** Spider-Verse comic palette: -1 = auto (cycle on beats), 0..N = fixed. */
   spiderPalette: number;
+  /** Active AI art style id (from the scene's styles manifest), or null for the original. */
+  activeStyle: string | null;
   debug: DebugSnapshot;
 
   setQuality: (q: QualityLevel) => void;
@@ -27,6 +29,7 @@ export interface RuntimeState {
   setPaused: (v: boolean) => void;
   setMuted: (v: boolean) => void;
   setSpiderPalette: (i: number) => void;
+  setActiveStyle: (id: string | null) => void;
   /** Merge a partial debug snapshot (called at low frequency, not every frame). */
   updateDebug: (patch: Partial<DebugSnapshot>) => void;
 }
@@ -37,6 +40,7 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
   paused: false,
   muted: true,
   spiderPalette: -1,
+  activeStyle: null,
   debug: {
     fps: 0,
     pointerImageSpace: { x: 0.5, y: 0.5 },
@@ -51,5 +55,6 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
   setPaused: (paused) => set({ paused }),
   setMuted: (muted) => set({ muted }),
   setSpiderPalette: (spiderPalette) => set({ spiderPalette }),
+  setActiveStyle: (activeStyle) => set({ activeStyle }),
   updateDebug: (patch) => set((s) => ({ debug: { ...s.debug, ...patch } })),
 }));
