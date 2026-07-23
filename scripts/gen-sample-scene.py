@@ -109,6 +109,29 @@ def make_subject_tree() -> np.ndarray:
     return arr
 
 
+def make_lake() -> np.ndarray:
+    """A calm lake band in the midground — the surface water ripples act on."""
+    arr = _blank()
+    top, bottom = 0.68, 0.80
+    band = (YY >= top) & (YY <= bottom)  # (H,1)
+    # Depth gradient: lighter (sky reflection) at the far edge, deeper toward viewer.
+    t = np.clip((YY - top) / (bottom - top), 0, 1)  # (H,1)
+    far = (150.0, 190.0, 210.0)
+    near = (46.0, 84.0, 110.0)
+    for c in range(3):
+        arr[..., c] = far[c] * (1 - t) + near[c] * t
+    # Horizontal reflection streaks (still water reads as banded highlights).
+    streak = (np.sin(YY * math.pi * 420) * 0.5 + 0.5) ** 3  # (H,1)
+    ripple_x = np.sin(XX * math.pi * 18) * 0.5 + 0.5  # (1,W)
+    for c in range(3):
+        arr[..., c] += streak * ripple_x * 26 - 8
+    # Soft edges so it blends into the shoreline instead of a hard rectangle.
+    edge_top = np.clip((YY - top) / 0.012, 0, 1)
+    edge_bottom = np.clip((bottom - YY) / 0.02, 0, 1)
+    arr[..., 3] = np.where(band, 255 * np.minimum(edge_top, edge_bottom), 0)
+    return arr
+
+
 def make_grass() -> np.ndarray:
     """Foreground grass band along the bottom with blade texture and a soft top edge."""
     arr = _blank()
@@ -153,6 +176,7 @@ def main() -> None:
     sky = make_sky()
     mountains = make_mountains()
     trees = make_trees()
+    lake = make_lake()
     subject = make_subject_tree()
     grass = make_grass()
     fog = make_fog()
@@ -160,14 +184,15 @@ def main() -> None:
     _save(sky, os.path.join(OUT, "layers", "sky.png"))
     _save(mountains, os.path.join(OUT, "layers", "mountains.png"))
     _save(trees, os.path.join(OUT, "layers", "trees.png"))
+    _save(lake, os.path.join(OUT, "layers", "lake.png"))
     _save(fog, os.path.join(OUT, "layers", "fog.png"))
     _save(subject, os.path.join(OUT, "layers", "subject-tree.png"))
     _save(grass, os.path.join(OUT, "layers", "grass.png"))
 
-    background = composite([sky, mountains, trees])
+    background = composite([sky, mountains, trees, lake])
     _save(background, os.path.join(OUT, "background.png"))
 
-    full = composite([sky, mountains, trees, fog, subject, grass])
+    full = composite([sky, mountains, trees, lake, fog, subject, grass])
     _save(full, os.path.join(OUT, "original", "normalized.png"))
 
     preview = Image.fromarray(np.clip(full, 0, 255).astype(np.uint8), "RGBA").resize((480, 270))

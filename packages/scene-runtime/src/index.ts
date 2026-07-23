@@ -13,6 +13,8 @@ export { FrameReporter } from './components/FrameReporter';
 export { RuntimeProvider, useRuntime } from './context';
 export type { RuntimeContextValue, AudioFrameAccessor } from './context';
 export { evaluateBinding, applyAudioBindings } from './audio/bindings';
+export { planLayerEffects } from './effects/layer-effects';
+export type { LayerEffectPlan, LayerMaterialKind } from './effects/layer-effects';
 export { useRuntimeStore } from './store';
 export type { RuntimeState, DebugSnapshot } from './store';
 export { SceneEventBus } from './events/eventBus';
