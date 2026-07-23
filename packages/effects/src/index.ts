@@ -47,10 +47,10 @@ export type { PostFXConfig, PostFXInput, ResolvedPostFX } from './postfx-config'
 // Spider-Verse comic stylization (Urban)
 export {
   DEFAULT_SPIDERVERSE_CONFIG,
-  MAX_SPLASH,
-  SPLASH_LIFETIME,
+  interpolateStamps,
   shouldStamp,
   SpiderVerseEffect,
-  SplashField,
 } from './spiderverse';
 export type { SpiderVerseConfig, SpiderVerseOptions } from './spiderverse';
+export { PaintAccumulator } from './paint-buffer';
+export type { StampPoint } from './paint-buffer';

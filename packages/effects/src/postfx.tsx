@@ -21,18 +21,20 @@ import {
 } from '@react-three/postprocessing';
 import { useFrame, useThree } from '@react-three/fiber';
 import { BlendFunction, Effect } from 'postprocessing';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 import { DEFAULT_POSTFX_CONFIG, resolvePostFX, type PostFXConfig } from './postfx-config';
+import { PaintAccumulator } from './paint-buffer';
 import {
   DEFAULT_SPIDERVERSE_CONFIG,
-  shouldStamp,
+  interpolateStamps,
   SpiderVerseEffect,
-  SplashField,
 } from './spiderverse';
 
-const SPIDER_SPACING = DEFAULT_SPIDERVERSE_CONFIG.spacing;
+const SPIDER = DEFAULT_SPIDERVERSE_CONFIG;
+/** Max stamp radius (UV) at very fast cursor speeds. */
+const SPIDER_MAX_RADIUS = 0.16;
 
 /* -------------------------------------------------------------------------- */
 /* Flashlight effect                                                          */
@@ -113,6 +115,7 @@ export interface PostFXProps {
 export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = false }: PostFXProps) {
   const cfg = useMemo<PostFXConfig>(() => ({ ...DEFAULT_POSTFX_CONFIG, ...config }), [config]);
   const size = useThree((s) => s.size);
+  const gl = useThree((s) => s.gl);
 
   // Resting look (no audio/pointer) drives the static effect props.
   const base = useMemo(
@@ -124,14 +127,14 @@ export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = fals
   const aberrationRef = useRef<{ offset: THREE.Vector2 } | null>(null);
   const flashRef = useRef<FlashlightEffect | null>(null);
   const spiderRef = useRef<SpiderVerseEffect | null>(null);
-  const splashes = useRef(new SplashField());
-  const lastSplash = useRef<{ x: number; y: number } | null>(null);
-  const clock = useRef(0);
+  const paint = useMemo(() => new PaintAccumulator(1024), []);
+  const lastStamp = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => () => paint.dispose(), [paint]);
 
-  useFrame((state, rawDelta) => {
+  useFrame((_, rawDelta) => {
     const frame = getAudioFrame?.() ?? null;
     const pointer = getPointer?.() ?? { x: 0.5, y: 0.5, speed: 0 };
-    clock.current = state.clock.elapsedTime;
+    const dt = Math.min(rawDelta, 1 / 30);
     const resolved = resolvePostFX(cfg, {
       loudness: frame?.loudness ?? 0,
       beatPulse: frame?.beatPulse ?? 0,
@@ -153,27 +156,24 @@ export function PostFX({ config, getAudioFrame, getPointer, reducedMotion = fals
     }
 
     if (spiderRef.current) {
-      const now = clock.current;
-      const cx = pointer.x;
-      const cy = 1 - pointer.y;
-      // Deposit a paint stamp when the cursor moves far enough (splats trail it).
-      if (!reducedMotion && shouldStamp(lastSplash.current, { x: cx, y: cy }, SPIDER_SPACING)) {
-        splashes.current.add(cx, cy, now);
-        lastSplash.current = { x: cx, y: cy };
-      }
-      splashes.current.prune(now);
-      const active = splashes.current.active;
+      // Cursor in buffer UV (image space is top-down; buffer UV is bottom-up).
+      const cur = { x: pointer.x, y: 1 - pointer.y };
+      // Faster cursor → bigger brush.
+      const radius = Math.min(SPIDER.stampRadius * (1 + pointer.speed * 1.4), SPIDER_MAX_RADIUS);
+      const stamps =
+        reducedMotion || pointer.speed < 1e-4
+          ? []
+          : interpolateStamps(lastStamp.current, cur, SPIDER.spacing);
+      if (stamps.length > 0) lastStamp.current = cur;
+
+      // Advance the persistent paint buffer every frame (so it keeps fading).
+      paint.update(gl, dt, stamps, SPIDER.lifetime, radius);
+
       const u = spiderRef.current.uniformMap;
-      u.get('uAspect')!.value = size.width / Math.max(size.height, 1);
+      u.get('uPaint')!.value = paint.texture;
+      u.get('uHasPaint')!.value = 1;
       (u.get('uResolution')!.value as THREE.Vector2).set(size.width, size.height);
       u.get('uReduced')!.value = reducedMotion ? 1 : 0;
-      u.get('uCount')!.value = active.length;
-      const pos = u.get('uPos')!.value as THREE.Vector2[];
-      const ages = u.get('uAge')!.value as Float32Array;
-      for (let i = 0; i < active.length; i++) {
-        pos[i]!.set(active[i]!.x, active[i]!.y);
-        ages[i] = splashes.current.ageAt(i, now);
-      }
     }
   });
 

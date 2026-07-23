@@ -1,21 +1,18 @@
 /**
  * Spider-Verse comic stylization (Urban preset).
  *
- * As the cursor moves it deposits "paint" stamps along its path. Each stamp AGES:
- * fresh stamps are small, crisp and strong; as they age they DISPERSE — growing
- * larger with a soft, hard-to-see edge — and fade out slowly. Inside the painted
- * region the image is restyled with the bold Into-the-Spider-Verse print look:
- * chunky Ben-Day halftone dots, posterized + saturated colour, and an RGB
- * channel-split "double vision" offset.
+ * The cursor "throws paint" onto a persistent accumulation buffer (see
+ * {@link PaintAccumulator} in paint-buffer). New stamps ADD into the buffer;
+ * each frame it decays linearly (so a stroke takes ~1 minute to disappear) and
+ * diffuses slightly (so older paint disperses with a soft, hard-to-see edge).
+ * This effect reads that buffer and, where paint has landed, restyles the image
+ * with the bold Into-the-Spider-Verse print look: chunky Ben-Day halftone dots,
+ * posterized + saturated colour, and an RGB channel-split "double vision" offset.
  *
  * Uniforms
- *  uCount      int        active stamp count
- *  uPos        vec2[N]    stamp centres in screen UV
- *  uAge        float[N]   stamp age 0 (fresh) → 1 (gone)
- *  uStampRadius float     fresh stamp radius (UV)
- *  uDispersion float      how much the radius grows as a stamp ages
- *  uStrength   float      global multiplier on the paint mask
- *  uAspect     float      viewport aspect (round dots)
+ *  uPaint      sampler2D  persistent paint coverage (r channel)
+ *  uHasPaint   float      1 when a paint texture is bound
+ *  uStrength   float      multiplier applied to the paint mask
  *  uResolution vec2       pixel resolution (halftone dot scale)
  *  uDotScale   float      halftone dot size (bigger = chunkier)
  *  uSplit      float      RGB split amount in UV
@@ -23,21 +20,17 @@
  *  uSaturation float      extra saturation inside paint
  *  uReduced    float      1 under reduced motion (calmer split)
  */
-import { clamp } from '@interactive-photo/shared';
 import { BlendFunction, Effect } from 'postprocessing';
 import * as THREE from 'three';
-
-/** Max simultaneous stamps (also the shader loop bound). */
-export const MAX_SPLASH = 36;
-/** Seconds a stamp takes to fully fade (slow). */
-export const SPLASH_LIFETIME = 12;
 
 export interface SpiderVerseConfig {
   enabled: boolean;
   /** Min cursor travel (UV) between deposited stamps. */
   spacing: number;
+  /** Paint stamp radius (UV). */
   stampRadius: number;
-  dispersion: number;
+  /** Seconds for a stroke to fully fade. */
+  lifetime: number;
   dotScale: number;
   split: number;
   posterize: number;
@@ -48,43 +41,16 @@ export interface SpiderVerseConfig {
 export const DEFAULT_SPIDERVERSE_CONFIG: SpiderVerseConfig = {
   enabled: true,
   spacing: 0.02,
-  stampRadius: 0.05,
-  dispersion: 2.2,
+  stampRadius: 0.055,
+  lifetime: 60,
   dotScale: 2.6,
   split: 0.012,
   posterize: 5,
   saturation: 0.5,
-  strength: 1.4,
+  strength: 1.5,
 };
 
-interface Stamp {
-  x: number;
-  y: number;
-  born: number;
-}
-
-/** A pool of paint stamps deposited along the cursor path; oldest evicted. */
-export class SplashField {
-  private stamps: Stamp[] = [];
-  add(x: number, y: number, time: number): void {
-    this.stamps.push({ x, y, born: time });
-    while (this.stamps.length > MAX_SPLASH) this.stamps.shift();
-  }
-  prune(time: number): void {
-    this.stamps = this.stamps.filter((s) => time - s.born < SPLASH_LIFETIME);
-  }
-  /** Age 0 (fresh) → 1 (gone). Out-of-range index returns 1. */
-  ageAt(index: number, time: number): number {
-    const s = this.stamps[index];
-    if (!s) return 1;
-    return clamp((time - s.born) / SPLASH_LIFETIME, 0, 1);
-  }
-  get active(): readonly Stamp[] {
-    return this.stamps;
-  }
-}
-
-/** Pure helper: should a new stamp be deposited given prev stamp + cursor (UV)? */
+/** Pure: should a new stamp be deposited given the previous stamp + cursor (UV)? */
 export function shouldStamp(
   prev: { x: number; y: number } | null,
   cur: { x: number; y: number },
@@ -94,15 +60,38 @@ export function shouldStamp(
   return Math.hypot(cur.x - prev.x, cur.y - prev.y) >= spacing;
 }
 
+/**
+ * Pure: evenly-spaced points from `prev` (exclusive) to `cur` (inclusive) so a
+ * fast cursor jump still lays a continuous stroke. Capped to `maxPoints` so a
+ * huge jump can't stamp thousands of quads in one frame.
+ */
+export function interpolateStamps(
+  prev: { x: number; y: number } | null,
+  cur: { x: number; y: number },
+  spacing: number,
+  maxPoints = 24,
+): Array<{ x: number; y: number }> {
+  if (!prev) return [cur];
+  const dx = cur.x - prev.x;
+  const dy = cur.y - prev.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < spacing) return [];
+  const steps = Math.min(Math.floor(dist / spacing), maxPoints);
+  const out: Array<{ x: number; y: number }> = [];
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    out.push({ x: prev.x + dx * t, y: prev.y + dy * t });
+  }
+  return out;
+}
+
+const FALLBACK_PAINT = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
+FALLBACK_PAINT.needsUpdate = true;
+
 const FRAGMENT = /* glsl */ `
-  #define MAX_SPLASH ${MAX_SPLASH}
-  uniform int   uCount;
-  uniform vec2  uPos[MAX_SPLASH];
-  uniform float uAge[MAX_SPLASH];
-  uniform float uStampRadius;
-  uniform float uDispersion;
+  uniform sampler2D uPaint;
+  uniform float uHasPaint;
   uniform float uStrength;
-  uniform float uAspect;
   uniform vec2  uResolution;
   uniform float uDotScale;
   uniform float uSplit;
@@ -116,29 +105,11 @@ const FRAGMENT = /* glsl */ `
     return clamp(mix(vec3(l), c, 1.0 + s), 0.0, 1.0);
   }
 
-  float paintMask(vec2 uv) {
-    float m = 0.0;
-    for (int i = 0; i < MAX_SPLASH; i++) {
-      if (i >= uCount) break;
-      float age = uAge[i];
-      if (age >= 1.0) continue;
-      // Disperse: radius grows with age; edge softens (inner shrinks).
-      float radius = uStampRadius * (1.0 + age * uDispersion);
-      float innerF = mix(0.85, 0.05, age);        // fresh: crisp, old: very soft
-      vec2 d = uv - uPos[i];
-      d.x *= uAspect;
-      float dist = length(d);
-      float edge = smoothstep(radius, radius * innerF, dist);  // 1 centre → 0 rim
-      float strength = pow(1.0 - age, 0.7);       // lingers, then fades slowly
-      m = max(m, edge * strength);
-    }
-    return clamp(m, 0.0, 1.0);
-  }
-
   void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
-    float mask = clamp(paintMask(uv) * uStrength, 0.0, 1.0);
+    float mask = uHasPaint > 0.5 ? clamp(texture(uPaint, uv).r * uStrength, 0.0, 1.0) : 0.0;
     if (mask <= 0.003) { outputColor = inputColor; return; }
 
+    // Bold RGB "double vision" channel split.
     float split = uSplit * (0.4 + 0.6 * mask) * (1.0 - uReduced * 0.6);
     float r = texture(inputBuffer, uv + vec2(split, split * 0.5)).r;
     float g = inputColor.g;
@@ -148,6 +119,7 @@ const FRAGMENT = /* glsl */ `
     col = saturate3(col, uSaturation);
     col = posterize(col, max(uPosterize, 2.0));
 
+    // Chunky Ben-Day halftone dots in a rotated screen grid.
     float ca = cos(0.4), sa = sin(0.4);
     vec2 rot = mat2(ca, -sa, sa, ca) * (uv * uResolution);
     float cell = max(uDotScale, 0.5) * 6.0;
@@ -162,8 +134,6 @@ const FRAGMENT = /* glsl */ `
 `;
 
 export interface SpiderVerseOptions {
-  stampRadius?: number;
-  dispersion?: number;
   dotScale?: number;
   split?: number;
   posterize?: number;
@@ -178,13 +148,9 @@ export class SpiderVerseEffect extends Effect {
     super('SpiderVerseEffect', FRAGMENT, {
       blendFunction: BlendFunction.NORMAL,
       uniforms: new Map<string, THREE.Uniform>([
-        ['uCount', new THREE.Uniform(0)],
-        ['uPos', new THREE.Uniform(Array.from({ length: MAX_SPLASH }, () => new THREE.Vector2()))],
-        ['uAge', new THREE.Uniform(new Float32Array(MAX_SPLASH).fill(1))],
-        ['uStampRadius', new THREE.Uniform(c.stampRadius)],
-        ['uDispersion', new THREE.Uniform(c.dispersion)],
+        ['uPaint', new THREE.Uniform(FALLBACK_PAINT)],
+        ['uHasPaint', new THREE.Uniform(0)],
         ['uStrength', new THREE.Uniform(c.strength)],
-        ['uAspect', new THREE.Uniform(1)],
         ['uResolution', new THREE.Uniform(new THREE.Vector2(1280, 720))],
         ['uDotScale', new THREE.Uniform(c.dotScale)],
         ['uSplit', new THREE.Uniform(c.split)],

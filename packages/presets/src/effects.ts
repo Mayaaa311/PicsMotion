@@ -46,16 +46,8 @@ export const presetEffects: Record<PresetName, PresetEffects> = {
       frequency: 2.8,
       audioStrength: 0.045,
     },
-    fog: {
-      enabled: true,
-      planeCount: 3,
-      opacity: 0.11,
-      speed: 0.02,
-      color: '#eef4ff',
-      bassSensitivity: 0.3,
-      clearStrength: 1,
-      clearRadius: 0.24,
-    },
+    // Fog disabled for Soft Nature so the layer motion + separation reads clearly.
+    fog: { enabled: false },
     particles: { enabled: true, type: 'pollen', count: 350, speed: 0.08, color: '#fff3c4' },
     sunlight: { enabled: true, position: { x: 0.72, y: 0.28 }, color: '#ffe6b0', maxIntensity: 0.35 },
     water: { enabled: true, amplitude: 0.012, frequency: 28, decay: 1.1 },
