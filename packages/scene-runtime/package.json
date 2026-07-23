@@ -1,0 +1,39 @@
+{
+  "name": "@interactive-photo/scene-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src --max-warnings=0"
+  },
+  "dependencies": {
+    "@interactive-photo/scene-schema": "workspace:*",
+    "@interactive-photo/presets": "workspace:*",
+    "@interactive-photo/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "@react-three/drei": ">=9",
+    "@react-three/fiber": ">=8",
+    "react": ">=18",
+    "three": ">=0.160.0",
+    "zustand": ">=4"
+  },
+  "devDependencies": {
+    "@react-three/drei": "9.114.3",
+    "@react-three/fiber": "8.17.10",
+    "@types/react": "^18.3.11",
+    "@types/three": "^0.169.0",
+    "react": "18.3.1",
+    "three": "0.169.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.3",
+    "zustand": "4.5.5"
+  }
+}
