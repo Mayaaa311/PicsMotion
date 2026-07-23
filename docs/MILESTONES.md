@@ -4,8 +4,8 @@
 |---|---|---|
 | 0 | Foundation (monorepo, web, api, schemas, docker, lint, test, CI, assets) | ✅ done |
 | 1 | Manual layer scene (loader, layers, depth, parallax, responsive, debug) | ✅ done |
-| 2 | Audio engine | ⏳ next |
-| 3 | Soft Nature effects (wind, fog, water, particles, sunlight) | ⏳ |
+| 2 | Audio engine | ✅ done |
+| 3 | Soft Nature effects (wind, fog, water, particles, sunlight) | ⏳ next |
 | 4 | Nostalgic + Dark | ⏳ |
 | 5 | Urban + Electronic (inertia, impulses, physics, aberration, trails) | ⏳ |
 | 6 | Manual scene editor | ⏳ |
@@ -32,6 +32,31 @@
 - [x] Quality settings (DPR clamp per tier) + reduced-motion + pause-on-hide.
 - [x] Debug panel (FPS, pointer coords, layer depth, active preset, quality).
 - [x] Unit tests + Playwright smoke test.
+
+## Milestone 2 — Definition of Done
+
+- [x] Audio upload (own file) **and** demo-library tracks via `AudioSourceAdapter`
+      (`UploadedAudioAdapter`, `LicensedLibraryAdapter`, placeholder `SpotifyPlaybackAdapter`).
+- [x] Playback: play / pause / seek / mute / volume, with autoplay-safe
+      `AudioContext` resume on a user gesture, and deterministic `dispose()`.
+- [x] Real-time frequency analysis → normalized bands (bass / lowMid / highMid /
+      treble / loudness) plus `spectralFlux`.
+- [x] Beat detection (adaptive threshold + min inter-beat interval) → `beat`
+      events and a decaying `beatPulse`.
+- [x] Attack/release smoothing so effects rise fast and decay smoothly.
+- [x] Scene receives **normalized values only** — the runtime calls
+      `getAudioFrame()` and never touches an `AnalyserNode`.
+- [x] Declarative mapping: `audioBindings` in `scene.json`
+      (`bass → camera.zoom`, `beatPulse → camera.push`) plus per-layer
+      `audioSensitivity`, all clamped.
+- [x] Unit tests for the pure DSP, beat detector and binding evaluation (28 in
+      audio-engine, 4 more in scene-runtime).
+
+### Audio: what is NOT included yet
+- Offline/Essentia.js section analysis (`section-change` events) — the
+  `AudioSection` type exists but no offline analyser is wired.
+- Preset-specific audio→visual identity (wind, fog, bloom, flashlight…) — that
+  is Milestones 3–5. Today audio drives a subtle camera push + per-layer pulse.
 
 ## Verification notes
 

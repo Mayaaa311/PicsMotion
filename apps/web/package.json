@@ -13,6 +13,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@interactive-photo/audio-engine": "workspace:*",
     "@interactive-photo/presets": "workspace:*",
     "@interactive-photo/scene-runtime": "workspace:*",
     "@interactive-photo/scene-schema": "workspace:*",

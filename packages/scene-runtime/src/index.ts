@@ -3,6 +3,7 @@ export { InteractiveScene } from './components/InteractiveScene';
 export type { InteractiveSceneProps } from './components/InteractiveScene';
 export { SceneCamera } from './components/SceneCamera';
 export { SceneContent } from './components/SceneContent';
+export { AudioCameraController } from './components/AudioCameraController';
 export { LayerPlane } from './components/LayerPlane';
 export { DebugPanel } from './components/DebugPanel';
 export { LoadingOverlay } from './components/LoadingOverlay';
@@ -10,7 +11,8 @@ export { FrameReporter } from './components/FrameReporter';
 
 // Context, store, events
 export { RuntimeProvider, useRuntime } from './context';
-export type { RuntimeContextValue } from './context';
+export type { RuntimeContextValue, AudioFrameAccessor } from './context';
+export { evaluateBinding, applyAudioBindings } from './audio/bindings';
 export { useRuntimeStore } from './store';
 export type { RuntimeState, DebugSnapshot } from './store';
 export { SceneEventBus } from './events/eventBus';

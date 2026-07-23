@@ -12,7 +12,7 @@ import { useRuntimeStore } from '../store';
  * per-frame hot path.
  */
 export function FrameReporter() {
-  const { scene, pointerRef, preset } = useRuntime();
+  const { scene, pointerRef, preset, getAudioFrame } = useRuntime();
   const frames = useRef(0);
   const acc = useRef(0);
 
@@ -26,12 +26,16 @@ export function FrameReporter() {
     acc.current = 0;
 
     const p = pointerRef.current;
+    const af = getAudioFrame();
     useRuntimeStore.getState().updateDebug({
       fps: Math.round(fps),
       pointerImageSpace: { x: +p.imageSpace.x.toFixed(3), y: +p.imageSpace.y.toFixed(3) },
       activePreset: preset.id,
       layerDepths: scene.layers.map((l) => ({ id: l.id, depth: l.depth })),
       drawCallHint: scene.layers.length,
+      audio: af
+        ? { bass: +af.bass.toFixed(2), loudness: +af.loudness.toFixed(2), beat: +af.beatPulse.toFixed(2) }
+        : null,
     });
   });
 

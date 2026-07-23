@@ -47,6 +47,37 @@ back-to-front (`renderOrder` by sorted depth) with `depthWrite=false` to avoid
 halos and z-fighting. The stage is sized "contain" so composition is stable
 across portrait/landscape and any viewport.
 
+## Audio (Milestone 2)
+
+`packages/audio-engine` is independent of all rendering code:
+
+```
+source (uploaded File | library URL)
+   └─ AudioSourceAdapter ──▶ HTMLAudioElement
+                               └─ MediaElementSource ─▶ AnalyserNode ─▶ Gain ─▶ out
+                                                            │
+        engine rAF loop: computeBands → attack/release smoothing
+                         spectralFlux → BeatDetector → beatPulse decay
+                                                            │
+                                              AudioFrame (mutated in place)
+                                                            │
+   scene: getAudioFrame() ──▶ AudioCameraController (clamped camera push)
+                         └──▶ LayerPlane (per-layer audioSensitivity pulse)
+```
+
+Key rules:
+- All DSP is **pure** (`dsp.ts`, `beat-detector.ts`, `bindings.ts`) so it is unit
+  tested with synthetic arrays — no real `AudioContext` in tests.
+- The renderer consumes **normalized `AudioFrame` values only**; it never queries
+  an `AnalyserNode` (spec §9).
+- `getAudioFrame()` returns `null` until a source is analysable, so the runtime
+  skips audio work entirely rather than reacting to zeroed data.
+- The frame object is mutated in place — no per-frame allocation in the hot path.
+- Audio response is clamped everywhere (camera push ≤ 0.5 world units, layer
+  pulse ≤ ~4.5% scale) and attenuated under reduced motion.
+- Spotify is a **placeholder adapter only** (`supportsSignalAnalysis = false`);
+  the core audio-reactive engine never depends on it (spec §19).
+
 ## AI pipeline (Milestone 7, currently mock)
 
 `apps/ai-service` exposes provider-agnostic adapters behind `Protocol`

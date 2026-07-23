@@ -3,6 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   // Workspace packages ship TypeScript source and must be transpiled by Next.
   transpilePackages: [
+    '@interactive-photo/audio-engine',
     '@interactive-photo/scene-runtime',
     '@interactive-photo/scene-schema',
     '@interactive-photo/presets',

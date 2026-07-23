@@ -46,4 +46,19 @@ test.describe('Soft Nature demo', () => {
     await page.getByRole('button', { name: 'Electronic / Energetic' }).click();
     await expect(page.getByTestId('debug-preset')).toHaveText('electronic');
   });
+
+  test('exposes audio controls and reports audio as off until playback', async ({ page }) => {
+    await page.goto('/demo/soft-nature');
+    await expect(page.getByTestId('interactive-scene')).toBeVisible({ timeout: 30_000 });
+
+    const controls = page.getByTestId('audio-controls');
+    await expect(controls).toBeVisible();
+    // Transport controls exist and start disabled until a source is chosen.
+    await expect(controls.getByRole('button', { name: 'Play' })).toBeDisabled();
+    await expect(controls.getByLabel('Seek')).toBeVisible();
+    await expect(controls.getByLabel('Volume')).toBeVisible();
+
+    // With no source the scene reports "off" rather than stale energy.
+    await expect(page.getByTestId('debug-audio')).toHaveText('off');
+  });
 });

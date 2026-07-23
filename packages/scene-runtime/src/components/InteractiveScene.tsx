@@ -7,16 +7,20 @@ import { DPR_CEILING } from '@interactive-photo/shared';
 import { Canvas } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 
+import type { AudioFrameAccessor } from '../context';
 import { RuntimeProvider } from '../context';
 import { SceneEventBus } from '../events/eventBus';
 import { usePointerField } from '../hooks/usePointerField';
 import { useSyncReducedMotion } from '../hooks/useReducedMotion';
 import { useRuntimeStore } from '../store';
+import { AudioCameraController } from './AudioCameraController';
 import { DebugPanel } from './DebugPanel';
 import { FrameReporter } from './FrameReporter';
 import { LoadingOverlay } from './LoadingOverlay';
 import { SceneCamera } from './SceneCamera';
 import { SceneContent } from './SceneContent';
+
+const NO_AUDIO: AudioFrameAccessor = () => null;
 
 export interface InteractiveSceneProps {
   scene: SceneDocument;
@@ -26,6 +30,8 @@ export interface InteractiveSceneProps {
   assetBaseUrl?: string;
   /** Show the diagnostics overlay (FPS, pointer, layers, quality controls). */
   showDebug?: boolean;
+  /** Optional accessor for the latest normalized audio frame (Milestone 2). */
+  getAudioFrame?: AudioFrameAccessor;
   className?: string;
   style?: React.CSSProperties;
   children?: React.ReactNode;
@@ -42,6 +48,7 @@ export function InteractiveScene({
   presetOverride,
   assetBaseUrl = '',
   showDebug = false,
+  getAudioFrame = NO_AUDIO,
   className,
   style,
   children,
@@ -63,8 +70,8 @@ export function InteractiveScene({
   }, [setPaused]);
 
   const ctx = useMemo(
-    () => ({ scene, preset, pointerRef, bus }),
-    [scene, preset, pointerRef, bus],
+    () => ({ scene, preset, pointerRef, bus, getAudioFrame }),
+    [scene, preset, pointerRef, bus, getAudioFrame],
   );
 
   return (
@@ -84,6 +91,7 @@ export function InteractiveScene({
           <Suspense fallback={null}>
             <SceneContent assetBaseUrl={assetBaseUrl} />
           </Suspense>
+          <AudioCameraController />
           <FrameReporter />
         </RuntimeProvider>
       </Canvas>

@@ -9,6 +9,8 @@ export interface DebugSnapshot {
   quality: QualityLevel;
   layerDepths: Array<{ id: string; depth: number }>;
   drawCallHint: number;
+  /** Latest audio readout, or null when no audio source is active. */
+  audio: { bass: number; loudness: number; beat: number } | null;
 }
 
 export interface RuntimeState {
@@ -38,6 +40,7 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
     quality: 'high',
     layerDepths: [],
     drawCallHint: 0,
+    audio: null,
   },
   setQuality: (quality) => set((s) => ({ quality, debug: { ...s.debug, quality } })),
   setReducedMotion: (reducedMotion) => set({ reducedMotion }),

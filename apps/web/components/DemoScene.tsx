@@ -1,10 +1,12 @@
 'use client';
 
+import { useAudioEngine } from '@interactive-photo/audio-engine';
 import { presets } from '@interactive-photo/presets';
 import { loadScene } from '@interactive-photo/scene-runtime';
 import type { PresetName, SceneDocument } from '@interactive-photo/scene-schema';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { AudioControls } from './AudioControls';
 import { InteractiveSceneDynamic } from './InteractiveSceneDynamic';
 
 const SCENE_DIR = '/scenes/soft-nature-demo';
@@ -23,6 +25,15 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
   const [scene, setScene] = useState<SceneDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preset, setPreset] = useState<PresetName>(initialPreset);
+  const { engine } = useAudioEngine();
+
+  // The scene pulls normalized audio values imperatively each render frame.
+  // Return null until a source is actually analysable, so the runtime skips all
+  // audio work (and the debug panel reports "off") instead of seeing zeroed data.
+  const getAudioFrame = useCallback(
+    () => (engine && engine.canAnalyse ? engine.getFrame() : null),
+    [engine],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +74,7 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
             scene={activeScene}
             assetBaseUrl={`${SCENE_DIR}/`}
             showDebug
+            getAudioFrame={getAudioFrame}
           />
           {/* Screen-reader description of the visual scene. */}
           <p className="sr-only">
@@ -91,6 +103,8 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
               </button>
             ))}
           </div>
+
+          <AudioControls engine={engine} />
         </>
       ) : (
         <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">

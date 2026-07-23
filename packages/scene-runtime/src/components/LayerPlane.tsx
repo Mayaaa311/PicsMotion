@@ -31,7 +31,7 @@ interface LayerPlaneProps {
  * `renderOrder` with `depthWrite` off to avoid halos and z-fighting.
  */
 export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProps) {
-  const { preset, pointerRef } = useRuntime();
+  const { preset, pointerRef, getAudioFrame } = useRuntime();
   const meshRef = useRef<THREE.Mesh>(null);
 
   const url = assetBaseUrl + layer.assetUrl;
@@ -62,6 +62,19 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProp
     // Note: pointer y grows downward; negate so layers rise as the cursor rises.
     mesh.position.x = damp(mesh.position.x, center.x + target.x, 6, dt);
     mesh.position.y = damp(mesh.position.y, center.y - target.y, 6, dt);
+
+    // Subtle audio-reactive scale pulse, weighted by this layer's authored
+    // sensitivity. Bounded so the subject never throbs distractingly.
+    const frame = getAudioFrame();
+    let targetScale = layer.baseScale;
+    if (frame) {
+      const s = layer.audioSensitivity;
+      const energy = s.beat * frame.beatPulse + s.loudness * frame.loudness + s.bass * frame.bass;
+      const pulse = (reducedMotion ? 0.25 : 1) * Math.min(energy, 1.5) * 0.03; // <=~4.5%
+      targetScale = layer.baseScale * (1 + pulse);
+    }
+    const nextScale = damp(mesh.scale.x, targetScale, 8, dt);
+    mesh.scale.setScalar(nextScale);
   });
 
   return (

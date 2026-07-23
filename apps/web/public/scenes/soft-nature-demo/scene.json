@@ -229,7 +229,26 @@
     "shakeStrength": 0,
     "driftStrength": 0.02
   },
-  "audioBindings": [],
+  "audioBindings": [
+    {
+      "source": "bass",
+      "target": "camera.zoom",
+      "scale": 0.25,
+      "offset": 0,
+      "smoothing": 0.2,
+      "clamp": [0, 0.3],
+      "curve": "easeOut"
+    },
+    {
+      "source": "beatPulse",
+      "target": "camera.push",
+      "scale": 0.12,
+      "offset": 0,
+      "smoothing": 0.3,
+      "clamp": [0, 0.15],
+      "curve": "linear"
+    }
+  ],
   "metadata": {
     "createdAt": "2026-07-22T00:00:00Z",
     "pipelineVersion": "0.1.0-manual"

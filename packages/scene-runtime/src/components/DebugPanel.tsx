@@ -58,6 +58,14 @@ export function DebugPanel() {
         <span>Quality</span>
         <span data-testid="debug-quality">{quality}</span>
       </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span>Audio</span>
+        <span data-testid="debug-audio">
+          {debug.audio
+            ? `b${debug.audio.bass.toFixed(2)} l${debug.audio.loudness.toFixed(2)} ♩${debug.audio.beat.toFixed(2)}`
+            : 'off'}
+        </span>
+      </div>
       <details style={{ marginTop: 6 }}>
         <summary style={{ cursor: 'pointer' }}>Layers ({debug.layerDepths.length})</summary>
         <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
