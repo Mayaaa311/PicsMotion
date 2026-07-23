@@ -1,11 +1,12 @@
 'use client';
 
+import { PostFX } from '@interactive-photo/effects';
 import type { PresetOverride } from '@interactive-photo/presets';
-import { mergePreset } from '@interactive-photo/presets';
+import { getPresetEffects, mergePreset } from '@interactive-photo/presets';
 import type { SceneDocument } from '@interactive-photo/scene-schema';
 import { DPR_CEILING } from '@interactive-photo/shared';
 import { Canvas } from '@react-three/fiber';
-import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { AudioFrameAccessor } from '../context';
 import { RuntimeProvider } from '../context';
@@ -59,8 +60,19 @@ export function InteractiveScene({
   const bus = useMemo(() => new SceneEventBus(), []);
 
   const quality = useRuntimeStore((s) => s.quality);
+  const reducedMotion = useRuntimeStore((s) => s.reducedMotion);
   const setPaused = useRuntimeStore((s) => s.setPaused);
   useSyncReducedMotion();
+
+  const postConfig = useMemo(() => getPresetEffects(preset.id).post, [preset.id]);
+  const getPointer = useCallback(
+    () => ({
+      x: pointerRef.current.imageSpace.x,
+      y: pointerRef.current.imageSpace.y,
+      speed: pointerRef.current.speed,
+    }),
+    [pointerRef],
+  );
 
   // Pause rendering while the tab/page is hidden (performance + battery).
   useEffect(() => {
@@ -93,6 +105,14 @@ export function InteractiveScene({
           </Suspense>
           <AudioCameraController />
           <FrameReporter />
+          {postConfig?.enabled !== false && (
+            <PostFX
+              config={postConfig}
+              getAudioFrame={getAudioFrame}
+              getPointer={getPointer}
+              reducedMotion={reducedMotion}
+            />
+          )}
         </RuntimeProvider>
       </Canvas>
 

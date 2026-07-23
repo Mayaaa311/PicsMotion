@@ -6,8 +6,8 @@
 | 1 | Manual layer scene (loader, layers, depth, parallax, responsive, debug) | ✅ done |
 | 2 | Audio engine | ✅ done |
 | 3 | Soft Nature effects (wind, fog, water, particles, sunlight) | ✅ done |
-| 4 | Nostalgic + Dark | ⏳ next |
-| 5 | Urban + Electronic (inertia, impulses, physics, aberration, trails) | ⏳ |
+| 4 | Nostalgic + Dark (+ postprocessing pipeline) | ✅ done |
+| 5 | Urban + Electronic (inertia, impulses, physics, aberration, trails) | ⏳ next |
 | 6 | Manual scene editor | ⏳ |
 | 7 | Hosted automatic parsing & completion (real providers) | ⏳ (mock scaffolding in place) |
 | 8 | Publishing | ⏳ |
@@ -80,6 +80,33 @@
 - Preset *identities* for Dark/Urban/Electronic/Nostalgic are still restrained
   (their signature effects are Milestones 4–5); only ambient fog/particles differ today.
 - No postprocessing pipeline (bloom/vignette/grain/aberration) yet — Milestone 4/5.
+
+## Milestone 4 — Definition of Done
+
+- [x] **Postprocessing pipeline** (`packages/effects/postfx.tsx`) over
+      @react-three/postprocessing: bloom, vignette, film grain, chromatic
+      aberration, sepia/brightness/contrast/saturation grade. Bloom (audio) and
+      aberration (pointer) update per-frame via refs; the rest are static props.
+      Pure, tested `resolvePostFX` folds audio/pointer/reduced-motion into clamped
+      intensities.
+- [x] **Dark**: custom `FlashlightEffect` — darkened scene with a noisy radial
+      reveal following the smoothed cursor (irregular edge, frozen under reduced
+      motion) + heavy vignette + desaturation.
+- [x] **Nostalgic**: `createPaperMaterial` — cream rim traced around the alpha
+      silhouette, warm tint, inner-edge thickness + sepia/grain/vignette grade.
+      (Applied when the preset's pointer mode is `lift`.)
+- [x] Camera drift (`AudioCameraController`) scaled by `camera.driftStrength`.
+- [x] All five presets now have a distinct visual identity; the runtime reads
+      `presetEffects[preset].post` and never branches on preset name.
+- [x] Reduced motion damps reactive additions and freezes the flashlight edge.
+- [x] Tests: 96 unit (incl. `resolvePostFX`); build + 7 e2e (a cycle through all
+      five presets asserts no console/WebGL errors).
+
+### Not included yet
+- Full drag-to-lift physics for Nostalgic (spring return, surrounding-layer
+  damping) is Milestone 5 (interaction-physics); today the paper look is static.
+- Dark "hidden detail" reveal-only layers are not wired (no `HiddenDetail` in the
+  schema yet).
 
 ## Verification notes
 

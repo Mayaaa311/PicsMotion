@@ -5,6 +5,8 @@ const nextConfig = {
   transpilePackages: [
     '@interactive-photo/audio-engine',
     '@interactive-photo/effects',
+    '@react-three/postprocessing',
+    'postprocessing',
     '@interactive-photo/scene-runtime',
     '@interactive-photo/scene-schema',
     '@interactive-photo/presets',

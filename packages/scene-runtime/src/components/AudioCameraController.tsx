@@ -22,10 +22,16 @@ export function AudioCameraController() {
   const { scene, preset, getAudioFrame } = useRuntime();
   const camera = useThree((s) => s.camera);
 
-  useFrame((_, rawDelta) => {
+  useFrame((state, rawDelta) => {
     const { paused, reducedMotion } = useRuntimeStore.getState();
     if (paused) return;
     const dt = Math.min(rawDelta, 1 / 30);
+
+    // Gentle handheld drift, scaled by the preset (and calmed under reduced motion).
+    const drift = scene.camera.driftStrength * (reducedMotion ? 0.3 : 1);
+    const t = state.clock.elapsedTime;
+    camera.position.x = damp(camera.position.x, Math.sin(t * 0.13) * drift, 2, dt);
+    camera.position.y = damp(camera.position.y, Math.cos(t * 0.17) * drift * 0.6, 2, dt);
 
     const frame = getAudioFrame();
     let push = 0;

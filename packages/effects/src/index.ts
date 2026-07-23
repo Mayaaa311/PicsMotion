@@ -29,3 +29,13 @@ export {
   updateWaterUniforms,
 } from './water';
 export type { Ripple, WaterConfig } from './water';
+
+// Paper-cutout material (Nostalgic)
+export { createPaperMaterial, DEFAULT_PAPER_CONFIG } from './paper';
+export type { PaperConfig } from './paper';
+
+// Postprocessing pipeline + flashlight (Milestone 4)
+export { PostFX, FlashlightEffect } from './postfx';
+export type { PostFXProps } from './postfx';
+export { DEFAULT_POSTFX_CONFIG, resolvePostFX } from './postfx-config';
+export type { PostFXConfig, PostFXInput, ResolvedPostFX } from './postfx-config';

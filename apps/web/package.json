@@ -24,7 +24,9 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "three": "0.169.0",
-    "zustand": "4.5.5"
+    "zustand": "4.5.5",
+    "@react-three/postprocessing": "2.16.3",
+    "postprocessing": "6.36.4"
   },
   "devDependencies": {
     "@playwright/test": "1.48.2",

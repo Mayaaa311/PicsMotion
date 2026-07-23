@@ -47,6 +47,34 @@ test.describe('Soft Nature demo', () => {
     await expect(page.getByTestId('debug-preset')).toHaveText('electronic');
   });
 
+  test('every preset renders without console errors (postprocessing paths)', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('console', (m) => {
+      if (m.type() === 'error') errors.push(m.text());
+    });
+    page.on('pageerror', (e) => errors.push(e.message));
+
+    await page.goto('/demo/soft-nature');
+    await expect(page.getByTestId('interactive-scene').locator('canvas')).toBeVisible({
+      timeout: 30_000,
+    });
+
+    // Dark (flashlight), Nostalgic (paper), Electronic (bloom+aberration), Urban.
+    for (const [label, id] of [
+      ['Dark / Mysterious', 'dark'],
+      ['Nostalgic / Folk', 'nostalgic'],
+      ['Electronic / Energetic', 'electronic'],
+      ['Urban / Hip-Hop', 'urban'],
+      ['Soft Nature', 'soft-nature'],
+    ] as const) {
+      await page.getByRole('button', { name: label }).click();
+      await expect(page.getByTestId('debug-preset')).toHaveText(id);
+      await page.waitForTimeout(400); // let the composer rebuild + a few frames run
+    }
+
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
   test('exposes audio controls and reports audio as off until playback', async ({ page }) => {
     await page.goto('/demo/soft-nature');
     await expect(page.getByTestId('interactive-scene')).toBeVisible({ timeout: 30_000 });

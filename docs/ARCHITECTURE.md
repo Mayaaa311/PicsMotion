@@ -100,6 +100,17 @@ Every effect clamps its intensity, attenuates under reduced motion, disposes its
 GPU resources on unmount, and never recompiles a shader in response to
 pointer/audio updates.
 
+### Postprocessing (Milestone 4)
+
+`PostFX` wraps a single `EffectComposer` mounted once inside the Canvas. Each
+preset supplies a `PostFXConfig` (`presetEffects[preset].post`); the pure
+`resolvePostFX` folds audio (bloom), pointer speed (aberration) and reduced motion
+into clamped intensities. Static effects are passed as props; only bloom intensity
+and the aberration offset are mutated per frame via refs. A custom
+`FlashlightEffect` (darken + noisy radial reveal at the cursor) powers Dark; the
+`createPaperMaterial` cutout (cream rim + warm tint) powers Nostalgic. This is the
+layer where the five presets finally diverge visually.
+
 ## AI pipeline (Milestone 7, currently mock)
 
 `apps/ai-service` exposes provider-agnostic adapters behind `Protocol`

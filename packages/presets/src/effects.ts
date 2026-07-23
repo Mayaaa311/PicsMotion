@@ -1,6 +1,8 @@
 import type {
   FogConfig,
+  PaperConfig,
   ParticleConfig,
+  PostFXConfig,
   SunlightConfig,
   WaterConfig,
   WindConfig,
@@ -21,6 +23,8 @@ export interface PresetEffects {
   particles?: Partial<ParticleConfig>;
   sunlight?: Partial<SunlightConfig>;
   water?: Partial<WaterConfig>;
+  paper?: Partial<PaperConfig>;
+  post?: Partial<PostFXConfig>;
 }
 
 /**
@@ -51,6 +55,7 @@ export const presetEffects: Record<PresetName, PresetEffects> = {
     particles: { enabled: true, type: 'pollen', count: 350, speed: 0.08, color: '#fff3c4' },
     sunlight: { enabled: true, position: { x: 0.72, y: 0.28 }, color: '#ffe6b0', maxIntensity: 0.35 },
     water: { enabled: true, amplitude: 0.012, frequency: 28, decay: 1.1 },
+    post: { enabled: true, bloom: 0.06, bloomAudio: 0.15, vignette: 0.06, grain: 0.015, saturation: 0.05 },
   },
 
   urban: {
@@ -59,14 +64,36 @@ export const presetEffects: Record<PresetName, PresetEffects> = {
     particles: { enabled: true, type: 'dust', count: 140, speed: 0.22, color: '#cfd6e0' },
     sunlight: { enabled: false },
     water: { enabled: false },
+    post: {
+      enabled: true,
+      bloom: 0.04,
+      vignette: 0.24,
+      grain: 0.03,
+      contrast: 0.12,
+      saturation: -0.12,
+      chromaticAberration: 0.0008,
+      aberrationPointer: 0.004,
+      maxAberration: 0.006,
+    },
   },
 
   dark: {
     wind: { enabled: false },
-    fog: { enabled: true, planeCount: 3, opacity: 0.3, speed: 0.015, color: '#7d8ea3' },
+    fog: { enabled: true, planeCount: 3, opacity: 0.32, speed: 0.015, color: '#7d8ea3' },
     particles: { enabled: true, type: 'dust', count: 180, speed: 0.05, color: '#8fa3bb' },
     sunlight: { enabled: false },
     water: { enabled: false },
+    post: {
+      enabled: true,
+      flashlight: true,
+      darken: 0.8,
+      flashlightRadius: 0.24,
+      flashlightFeather: 0.3,
+      vignette: 0.4,
+      grain: 0.04,
+      saturation: -0.2,
+      brightness: -0.04,
+    },
   },
 
   electronic: {
@@ -75,6 +102,17 @@ export const presetEffects: Record<PresetName, PresetEffects> = {
     particles: { enabled: true, type: 'dust', count: 600, speed: 0.3, color: '#9fe8ff', opacity: 0.7 },
     sunlight: { enabled: true, position: { x: 0.5, y: 0.5 }, color: '#7fd7ff', maxIntensity: 0.3, beatSensitivity: 0.5 },
     water: { enabled: false },
+    post: {
+      enabled: true,
+      bloom: 0.5,
+      bloomAudio: 0.9,
+      maxBloom: 2.5,
+      vignette: 0.1,
+      saturation: 0.2,
+      chromaticAberration: 0.0012,
+      aberrationPointer: 0.006,
+      maxAberration: 0.01,
+    },
   },
 
   nostalgic: {
@@ -83,6 +121,15 @@ export const presetEffects: Record<PresetName, PresetEffects> = {
     particles: { enabled: true, type: 'dust', count: 160, speed: 0.04, color: '#ffe0b0' },
     sunlight: { enabled: true, position: { x: 0.3, y: 0.25 }, color: '#ffd9a0', maxIntensity: 0.22 },
     water: { enabled: false },
+    paper: { enabled: true, warm: 0.5, thickness: 0.35, borderWidthPx: 6 },
+    post: {
+      enabled: true,
+      sepia: 0.35,
+      grain: 0.08,
+      vignette: 0.26,
+      saturation: -0.15,
+      brightness: 0.03,
+    },
   },
 };
 

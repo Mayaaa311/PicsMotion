@@ -1,8 +1,10 @@
 'use client';
 
 import {
+  createPaperMaterial,
   createWaterMaterial,
   createWindMaterial,
+  DEFAULT_PAPER_CONFIG,
   DEFAULT_WATER_CONFIG,
   DEFAULT_WIND_CONFIG,
   RippleManager,
@@ -90,6 +92,13 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProp
         { ...DEFAULT_WATER_CONFIG, ...presetFx.water },
         layer.baseOpacity,
         stageAspect,
+      );
+    }
+    if (plan.material === 'paper' && presetFx.paper?.enabled !== false) {
+      return createPaperMaterial(
+        texture,
+        { ...DEFAULT_PAPER_CONFIG, ...presetFx.paper },
+        layer.baseOpacity,
       );
     }
     return new THREE.MeshBasicMaterial({
