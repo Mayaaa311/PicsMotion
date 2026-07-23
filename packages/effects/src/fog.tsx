@@ -28,9 +28,13 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 /** Max simultaneous clear spots (also the shader loop bound). */
-const MAX_CLEAR = 14;
-/** Seconds a clear spot takes to fade (fog fully returns). */
-const CLEAR_LIFETIME = 2.8;
+const MAX_CLEAR = 20;
+/** Seconds a clear spot lives before fog fully returns. */
+const CLEAR_LIFETIME = 8;
+/** Fraction of the lifetime the patch stays fully clear before it starts to fade. */
+const CLEAR_HOLD = 0.55;
+/** Min cursor travel (UV) between deposited clear spots — spacing avoids a "snake". */
+const CLEAR_SPACING = 0.07;
 
 export interface FogConfig {
   enabled: boolean;
@@ -58,7 +62,7 @@ export const DEFAULT_FOG_CONFIG: FogConfig = {
   color: '#eef4ff',
   bassSensitivity: 0.3,
   clearStrength: 1,
-  clearRadius: 0.16,
+  clearRadius: 0.22,
 };
 
 const REDUCED_MOTION_SCALE = 0.3;
@@ -224,7 +228,7 @@ export function FogPlanes({
       const cy = 1 - pointer.y; // image space is top-down; UV is bottom-up
       const prev = lastPointer.current;
       const moved = prev ? Math.hypot(cx - prev.x, cy - prev.y) : 0;
-      if (!prev || moved > 0.02) {
+      if (!prev || moved > CLEAR_SPACING) {
         clearField.add(cx, cy, time);
         lastPointer.current = { x: cx, y: cy };
       }
@@ -246,7 +250,10 @@ export function FogPlanes({
       for (let i = 0; i < spots.length; i++) {
         const s = spots[i]!;
         pos[i]!.set(s.x, s.y);
-        str[i] = clamp(1 - (time - s.born) / CLEAR_LIFETIME, 0, 1) * clamp(cfg.clearStrength, 0, 1);
+        // Hold fully clear for CLEAR_HOLD of the lifetime, then ease back slowly.
+        const age = (time - s.born) / CLEAR_LIFETIME;
+        const raw = age < CLEAR_HOLD ? 1 : clamp(1 - (age - CLEAR_HOLD) / (1 - CLEAR_HOLD), 0, 1);
+        str[i] = raw * clamp(cfg.clearStrength, 0, 1);
       }
     }
   });
