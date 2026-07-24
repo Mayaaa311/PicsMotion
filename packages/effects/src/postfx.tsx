@@ -34,6 +34,12 @@ import {
 } from './spiderverse';
 
 const SPIDER = DEFAULT_SPIDERVERSE_CONFIG;
+
+// TEMPORARY (testing): the animated film grain and the (pointer-speed-driven)
+// chromatic aberration both read as "colour glitching" while painting. Disabled
+// so the paintbrush style reveal can be judged on its own. Set back to false to
+// restore the full colour grade.
+const DISABLE_GLITCH_FX_FOR_TESTING = true;
 /** Max stamp radius (UV) at very fast cursor speeds. */
 const SPIDER_MAX_RADIUS = 0.16;
 /** Beat pulse above which the palette advances (rising edge). */
@@ -234,7 +240,8 @@ export function PostFX({
           luminanceThreshold={base.bloomThreshold}
           mipmapBlur
         />
-        {base.chromaticAberration > 0 || cfg.aberrationPointer > 0 ? (
+        {!DISABLE_GLITCH_FX_FOR_TESTING &&
+        (base.chromaticAberration > 0 || cfg.aberrationPointer > 0) ? (
           <ChromaticAberration
             ref={aberrationRef as never}
             offset={new THREE.Vector2(base.chromaticAberration, base.chromaticAberration)}
@@ -244,7 +251,11 @@ export function PostFX({
         ) : (
           <></>
         )}
-        {base.grain > 0 ? <Noise opacity={base.grain} premultiply /> : <></>}
+        {!DISABLE_GLITCH_FX_FOR_TESTING && base.grain > 0 ? (
+          <Noise opacity={base.grain} premultiply />
+        ) : (
+          <></>
+        )}
         {base.vignette > 0 ? <Vignette darkness={base.vignette} eskil={false} /> : <></>}
       </>
     </EffectComposer>

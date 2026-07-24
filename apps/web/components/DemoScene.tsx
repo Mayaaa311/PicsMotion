@@ -9,6 +9,22 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AudioControls } from './AudioControls';
 import { InteractiveSceneDynamic } from './InteractiveSceneDynamic';
 
+/**
+ * Music/audio UI is hidden for now while the visual pipeline is being tuned.
+ * The audio engine and all its bindings stay wired up — flip this to `true` to
+ * bring the transport back with no other changes.
+ */
+const SHOW_AUDIO_CONTROLS = false;
+
+/**
+ * The preset selector (Soft Nature / Urban / Dark / Nostalgic) is hidden for now:
+ * the app shows the plain moving photo and the art-style paintbrush, with no
+ * colour grade or ambient effect applied before painting. The presets and their
+ * effect code are kept intact for future use — flip this to `true` to bring the
+ * selector back (and drop `plain` on InteractiveSceneDynamic).
+ */
+const SHOW_PRESETS = false;
+
 const DEFAULT_SCENE_DIR = '/scenes/yosemite-falls';
 const GALLERY_INDEX = '/scenes/gallery/index.json';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
@@ -37,24 +53,27 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
   const { engine } = useAudioEngine();
   const activeStyle = useRuntimeStore((s) => s.activeStyle);
   const setActiveStyle = useRuntimeStore((s) => s.setActiveStyle);
+  const setStyleList = useRuntimeStore((s) => s.setStyleList);
+  const resetStyles = useRuntimeStore((s) => s.resetStyles);
   const [styles, setStyles] = useState<Array<{ id: string; displayName: string }>>([]);
 
   // Which processed scene is loaded, the photo gallery, and intake UI state.
   const [sceneDir, setSceneDir] = useState(DEFAULT_SCENE_DIR);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [showPhotos, setShowPhotos] = useState(false);
+  const [showControls, setShowControls] = useState(true);
   const [uploadState, setUploadState] = useState<'idle' | 'processing' | 'error'>('idle');
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
 
   const chooseScene = useCallback(
     (dir: string) => {
-      setActiveStyle(null); // styles are per-scene
+      resetStyles(); // styles + painted strokes are per-scene
       setScene(null);
       setError(null);
       setSceneDir(dir);
       setShowPhotos(false);
     },
-    [setActiveStyle],
+    [resetStyles],
   );
 
   // The scene pulls normalized audio values imperatively each render frame.
@@ -86,7 +105,11 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
     fetch(`${sceneDir}/styles/manifest.json`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data: { styles?: Array<{ id: string; displayName: string }> }) => {
-        if (!cancelled) setStyles(data.styles ?? []);
+        if (cancelled) return;
+        const list = data.styles ?? [];
+        setStyles(list);
+        // The order here defines the paint-buffer style index for each style.
+        setStyleList(list.map((s) => s.id));
       })
       .catch(() => {
         /* no styles for this scene */
@@ -94,7 +117,7 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
     return () => {
       cancelled = true;
     };
-  }, [sceneDir]);
+  }, [sceneDir, setStyleList]);
 
   // Load the pre-processed photo gallery once.
   useEffect(() => {
@@ -167,7 +190,8 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
           <InteractiveSceneDynamic
             scene={activeScene}
             assetBaseUrl={`${sceneDir}/`}
-            showDebug
+            plain
+            showDebug={false}
             getAudioFrame={getAudioFrame}
           />
           {/* Screen-reader description of the visual scene. */}
@@ -176,48 +200,84 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
             pointer to shift the layers with depth.
           </p>
 
-          {/* Preset selector (top-right). */}
-          <div className="absolute right-3 top-3 flex flex-col gap-1 rounded-lg border border-white/10 bg-black/60 p-2 backdrop-blur">
-            <span className="px-1 font-mono text-[11px] uppercase tracking-wide text-slate-400">
-              Preset
-            </span>
-            {PRESET_NAMES.map((name) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => setPreset(name)}
-                aria-pressed={preset === name}
-                className={`rounded px-3 py-1 text-left text-sm transition ${
-                  preset === name
-                    ? 'bg-mist text-ink'
-                    : 'bg-white/5 text-slate-200 hover:bg-white/10'
-                }`}
-              >
-                {presets[name].displayName}
-              </button>
-            ))}
+          {/* Compact, collapsible control panel (top-right) so it never blocks
+              the picture. Presets on top; the art-style paintbrush below. */}
+          <div className="absolute right-3 top-3 w-52 rounded-lg border border-white/10 bg-black/60 backdrop-blur">
+            <button
+              type="button"
+              onClick={() => setShowControls((v) => !v)}
+              aria-expanded={showControls}
+              className="flex w-full items-center justify-between rounded-t-lg px-2 py-1.5 text-left font-mono text-[10px] uppercase tracking-wide text-slate-300 hover:bg-white/5"
+            >
+              <span>Controls</span>
+              <span aria-hidden className="text-slate-500">{showControls ? '▾' : '▸'}</span>
+            </button>
 
-            {/* AI art style — restyles the actual layers (needs generated styles). */}
-            {styles.length > 0 && (
-              <div className="mt-2 flex flex-col gap-1 border-t border-white/10 pt-2">
-                <span className="px-1 font-mono text-[11px] uppercase tracking-wide text-slate-400">
-                  Art style
-                </span>
-                {[{ id: null as string | null, displayName: 'Original' }, ...styles].map((s) => (
-                  <button
-                    key={s.id ?? 'original'}
-                    type="button"
-                    onClick={() => setActiveStyle(s.id)}
-                    aria-pressed={activeStyle === s.id}
-                    className={`rounded px-3 py-1 text-left text-xs transition ${
-                      activeStyle === s.id
-                        ? 'bg-mist text-ink'
-                        : 'bg-white/5 text-slate-200 hover:bg-white/10'
+            {showControls && (
+              <div className="flex flex-col gap-1 px-2 pb-2">
+                {SHOW_PRESETS && (
+                  <>
+                    <span className="px-0.5 font-mono text-[10px] uppercase tracking-wide text-slate-500">
+                      Preset
+                    </span>
+                    <div className="grid grid-cols-2 gap-1">
+                      {PRESET_NAMES.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => setPreset(name)}
+                          aria-pressed={preset === name}
+                          aria-label={presets[name].displayName}
+                          title={presets[name].displayName}
+                          className={`truncate rounded px-1.5 py-1 text-left text-[11px] transition ${
+                            preset === name
+                              ? 'bg-mist text-ink'
+                              : 'bg-white/5 text-slate-200 hover:bg-white/10'
+                          }`}
+                        >
+                          {presets[name].displayName.split(' / ')[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* AI art style — a cursor "paintbrush" paints the restyled photo
+                    in along its path (needs generated styles; gen-styles.py). */}
+                {styles.length > 0 && (
+                  <div
+                    className={`flex flex-col gap-1 ${
+                      SHOW_PRESETS ? 'mt-1.5 border-t border-white/10 pt-1.5' : ''
                     }`}
                   >
-                    {s.displayName}
-                  </button>
-                ))}
+                    <span className="px-0.5 font-mono text-[10px] uppercase tracking-wide text-slate-500">
+                      Paintbrush
+                    </span>
+                    <div className="grid max-h-64 grid-cols-2 gap-1 overflow-y-auto pr-0.5">
+                      {[{ id: null as string | null, displayName: 'Original' }, ...styles].map(
+                        (s) => (
+                          <button
+                            key={s.id ?? 'original'}
+                            type="button"
+                            onClick={() => setActiveStyle(s.id)}
+                            aria-pressed={activeStyle === s.id}
+                            title={s.id ? `Paint ${s.displayName}` : 'Eraser — reveal the photo'}
+                            className={`truncate rounded px-1.5 py-1 text-left text-[11px] transition ${
+                              activeStyle === s.id
+                                ? 'bg-mist text-ink'
+                                : 'bg-white/5 text-slate-200 hover:bg-white/10'
+                            }`}
+                          >
+                            {s.displayName}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                    <p className="px-0.5 pt-0.5 text-[10px] leading-snug text-slate-400">
+                      Paint over the photo. Switching only affects new strokes; Original erases.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -289,7 +349,7 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
             )}
           </div>
 
-          <AudioControls engine={engine} />
+          {SHOW_AUDIO_CONTROLS && <AudioControls engine={engine} />}
         </>
       ) : (
         <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">

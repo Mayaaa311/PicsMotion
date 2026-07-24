@@ -1,4 +1,9 @@
-import { clamp, DEPTH_SPREAD, GLOBAL_PARALLAX_SCALE } from '@interactive-photo/shared';
+import {
+  CAMERA_DISTANCE,
+  clamp,
+  DEPTH_SPREAD,
+  GLOBAL_PARALLAX_SCALE,
+} from '@interactive-photo/shared';
 import type { SceneLayer } from '@interactive-photo/scene-schema';
 
 export interface Size {
@@ -47,18 +52,33 @@ export function layerCenterWorld(layer: Pick<SceneLayer, 'bounds'>, stage: Size)
   };
 }
 
-/** World-space size of a layer plane. */
-export function layerPlaneSize(layer: Pick<SceneLayer, 'bounds'>, stage: Size): Size {
-  return {
-    width: layer.bounds.width * stage.width,
-    height: layer.bounds.height * stage.height,
-  };
-}
-
 /** World-space z of a layer from its normalized depth (0 near, 1 far). */
 export function layerDepthZ(depth: number): number {
   const z = -depth * DEPTH_SPREAD;
   return z === 0 ? 0 : z; // normalize -0 → 0
+}
+
+/**
+ * Perspective compensation for a plane at world `z`.
+ *
+ * Depth is created by pushing layers along -Z, and under a perspective camera a
+ * pushed-back plane is foreshortened: at DEPTH_SPREAD 2.5 and camera distance 6,
+ * a `depth: 0.9` plate renders at 0.73x while a `depth: 0.16` subject renders at
+ * 0.94x — a 29% mismatch, so the layers' frame edges do not line up and the
+ * nearer ones overhang the photo. Scaling a layer by this factor makes every
+ * layer cover the same on-screen rect at rest, whatever z it sits at.
+ */
+export function depthScale(z: number): number {
+  return (CAMERA_DISTANCE - z) / CAMERA_DISTANCE;
+}
+
+/** World-space size of a layer plane, perspective-compensated for its depth. */
+export function layerPlaneSize(layer: Pick<SceneLayer, 'bounds' | 'depth'>, stage: Size): Size {
+  const scale = depthScale(layerDepthZ(layer.depth));
+  return {
+    width: layer.bounds.width * stage.width * scale,
+    height: layer.bounds.height * stage.height * scale,
+  };
 }
 
 /**
@@ -72,7 +92,7 @@ export function layerDepthZ(depth: number): number {
  */
 export function parallaxOffsetWorld(
   pointerCentered: Vec2,
-  layer: Pick<SceneLayer, 'movement' | 'revealBudget'>,
+  layer: Pick<SceneLayer, 'movement' | 'revealBudget' | 'depth'>,
   stage: Size,
   presetParallax: number,
   reducedMotion: boolean,
@@ -88,5 +108,9 @@ export function parallaxOffsetWorld(
   const fracX = clamp(pointerCentered.x * strength, -maxFracX, maxFracX);
   const fracY = clamp(pointerCentered.y * strength, -maxFracY, maxFracY);
 
-  return { x: fracX * stage.width, y: fracY * stage.height };
+  // Compensated like the plane itself, so an authored maxOffset fraction travels
+  // the same distance ON SCREEN at any depth — which is what the generator's
+  // reveal budget (how far it inpainted behind each layer) assumes.
+  const scale = depthScale(layerDepthZ(layer.depth));
+  return { x: fracX * stage.width * scale, y: fracY * stage.height * scale };
 }

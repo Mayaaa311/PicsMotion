@@ -106,6 +106,85 @@ class Settings(BaseSettings):
         )
     )
 
+    # ---- Local ONNX style transfer ----
+    # Directory holding the fast-neural-style ONNX models (git-ignored; run
+    # scripts/prep-style-models.py to populate). Defaults to the web app's
+    # public models dir so browser + service share one copy.
+    style_models_dir: str = Field(
+        default=str(
+            os.path.abspath(
+                os.path.join(
+                    os.path.dirname(__file__), "..", "..", "web", "public", "models", "style"
+                )
+            )
+        )
+    )
+    # Longest side (px) the style network runs at. The fully-convolutional model
+    # runs at any size; this caps CPU cost while staying sharp for a brush reveal.
+    style_max_size: int = Field(default=1024, ge=128, le=4096)
+    # Threads each cached ONNX session may spawn. A batch run keeps one session
+    # alive per painterly style, and onnxruntime otherwise sizes every pool to
+    # the core count -- on a many-core laptop that is hundreds of threads and
+    # several GB of retained arena, enough for the kernel OOM killer to take out
+    # the desktop. Inference is ~1s per image either way, so cap it.
+    style_intra_op_threads: int = Field(default=4, ge=1, le=64)
+
+    # ---- Subject segmentation (U^2-Net, for layer separation) ----
+    # Git-ignored weights; run scripts/prep-segmentation-model.py to populate.
+    segmentation_model_path: str = Field(
+        default=str(
+            os.path.abspath(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    "..",
+                    "..",
+                    "web",
+                    "public",
+                    "models",
+                    "seg",
+                    "u2net.onnx",
+                )
+            )
+        )
+    )
+    # AnimeGANv3 weights (Miyazaki/Ghibli styles); git-ignored, see
+    # scripts/prep-style-models.py.
+    anime_models_dir: str = Field(
+        default=str(
+            os.path.abspath(
+                os.path.join(
+                    os.path.dirname(__file__), "..", "..", "web", "public", "models", "anime"
+                )
+            )
+        )
+    )
+
+    # Saliency above this counts as subject. Higher = tighter cutout.
+    subject_threshold: float = Field(default=0.5, gt=0.0, lt=1.0)
+
+    # ---- Monocular depth (Depth-Anything V2, for depth strata) ----
+    # Git-ignored weights; run scripts/prep-segmentation-model.py to populate.
+    depth_model_path: str = Field(
+        default=str(
+            os.path.abspath(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    "..",
+                    "..",
+                    "web",
+                    "public",
+                    "models",
+                    "depth",
+                    "depth_anything_v2_vits.onnx",
+                )
+            )
+        )
+    )
+    # Depth percentiles (of the non-subject area) that split it into strata.
+    depth_band_cuts: tuple[float, float] = Field(default=(0.38, 0.72))
+    # Bands smaller than this share of the frame are folded into the background.
+    min_layer_coverage: float = Field(default=0.02, gt=0.0, lt=0.5)
+
     @property
     def is_mock_mode(self) -> bool:
         return self.ai_provider_mode == "mock"

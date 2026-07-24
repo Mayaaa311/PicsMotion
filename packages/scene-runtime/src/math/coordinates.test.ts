@@ -1,3 +1,4 @@
+import { CAMERA_DISTANCE } from '@interactive-photo/shared';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -53,9 +54,20 @@ describe('layer placement', () => {
     expect(c.x).toBeLessThan(0);
     expect(c.y).toBeGreaterThan(0);
   });
-  it('sizes a full-frame plane to the stage', () => {
-    const s = layerPlaneSize(fullFrameBounds, { width: 10, height: 6 });
+  it('sizes a full-frame plane at depth 0 to exactly the stage', () => {
+    const s = layerPlaneSize({ ...fullFrameBounds, depth: 0 }, { width: 10, height: 6 });
     expect(s).toEqual({ width: 10, height: 6 });
+  });
+  it('scales a pushed-back plane up so it still covers the stage on screen', () => {
+    // A far layer sits at negative z and would be foreshortened; the returned
+    // plane is enlarged by exactly that factor so it covers the same screen rect.
+    const stage = { width: 10, height: 6 };
+    const far = layerPlaneSize({ ...fullFrameBounds, depth: 1 }, stage);
+    const near = layerPlaneSize({ ...fullFrameBounds, depth: 0 }, stage);
+    expect(far.width).toBeGreaterThan(near.width);
+    // Apparent size = size * distance ratio, and must match the stage again.
+    const apparent = far.width * (CAMERA_DISTANCE / (CAMERA_DISTANCE - layerDepthZ(1)));
+    expect(apparent).toBeCloseTo(stage.width, 6);
   });
   it('orders depth away from the camera', () => {
     expect(layerDepthZ(0)).toBe(0);
@@ -77,6 +89,7 @@ describe('parallaxOffsetWorld', () => {
       returnMode: 'spring' as const,
     },
     revealBudget: { maxOffsetX: 0.05, maxOffsetY: 0.05, confidence: 1 },
+    depth: 0,
   };
 
   it('returns zero when movement disabled', () => {

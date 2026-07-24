@@ -1,5 +1,6 @@
 'use client';
 
+import type { StylePaintField } from '@interactive-photo/effects';
 import { PostFX } from '@interactive-photo/effects';
 import type { PresetOverride } from '@interactive-photo/presets';
 import { getPresetEffects, mergePreset } from '@interactive-photo/presets';
@@ -20,6 +21,7 @@ import { FrameReporter } from './FrameReporter';
 import { LoadingOverlay } from './LoadingOverlay';
 import { SceneCamera } from './SceneCamera';
 import { SceneContent } from './SceneContent';
+import { StageFrameMask } from './StageFrameMask';
 
 const NO_AUDIO: AudioFrameAccessor = () => null;
 
@@ -31,6 +33,14 @@ export interface InteractiveSceneProps {
   assetBaseUrl?: string;
   /** Show the diagnostics overlay (FPS, pointer, layers, quality controls). */
   showDebug?: boolean;
+  /**
+   * Plain mode: render only the parallaxing photo layers (plus the paintbrush) —
+   * no ambient effects and no postprocessing colour grade. Used by the paint app
+   * so nothing tints or filters the photo before the cursor paints a style in.
+   */
+  plain?: boolean;
+  /** Letterbox colour; must match the page background behind the canvas. */
+  matteColor?: string;
   /** Optional accessor for the latest normalized audio frame (Milestone 2). */
   getAudioFrame?: AudioFrameAccessor;
   className?: string;
@@ -49,6 +59,8 @@ export function InteractiveScene({
   presetOverride,
   assetBaseUrl = '',
   showDebug = false,
+  plain = false,
+  matteColor = '#0a0c10',
   getAudioFrame = NO_AUDIO,
   className,
   style,
@@ -57,6 +69,7 @@ export function InteractiveScene({
   const containerRef = useRef<HTMLDivElement>(null);
   const preset = useMemo(() => mergePreset(scene.preset, presetOverride), [scene.preset, presetOverride]);
   const pointerRef = usePointerField(containerRef, preset.pointer.smoothing);
+  const paintFieldRef = useRef<StylePaintField | null>(null);
   const bus = useMemo(() => new SceneEventBus(), []);
 
   const quality = useRuntimeStore((s) => s.quality);
@@ -83,7 +96,7 @@ export function InteractiveScene({
   }, [setPaused]);
 
   const ctx = useMemo(
-    () => ({ scene, preset, pointerRef, bus, getAudioFrame }),
+    () => ({ scene, preset, pointerRef, bus, getAudioFrame, paintFieldRef }),
     [scene, preset, pointerRef, bus, getAudioFrame],
   );
 
@@ -102,11 +115,11 @@ export function InteractiveScene({
         <RuntimeProvider value={ctx}>
           <SceneCamera />
           <Suspense fallback={null}>
-            <SceneContent assetBaseUrl={assetBaseUrl} />
+            <SceneContent assetBaseUrl={assetBaseUrl} plain={plain} />
           </Suspense>
           <AudioCameraController />
           <FrameReporter />
-          {postConfig?.enabled !== false && (
+          {!plain && postConfig?.enabled !== false && (
             <PostFX
               config={postConfig}
               getAudioFrame={getAudioFrame}
@@ -117,6 +130,10 @@ export function InteractiveScene({
           )}
         </RuntimeProvider>
       </Canvas>
+
+      {/* Masks the letterbox so parallax-offset layers cannot spill outside the
+          photo's frame. Sits above the canvas, below the UI. */}
+      <StageFrameMask aspectRatio={scene.aspectRatio} color={matteColor} />
 
       <LoadingOverlay />
       {showDebug && <DebugPanel />}

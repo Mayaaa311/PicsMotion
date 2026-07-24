@@ -13,14 +13,18 @@ import asyncio
 import base64
 import io
 import logging
-from collections.abc import Callable
-from typing import Any, Protocol, runtime_checkable
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import httpx
-from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
+import numpy as np
+from PIL import Image
 
 from app.config import Settings, get_settings
 from models.styles import StyleSpec
+
+if TYPE_CHECKING:
+    import onnxruntime as ort
 
 logger = logging.getLogger(__name__)
 
@@ -61,84 +65,345 @@ def _to_png_bytes(image: Image.Image) -> bytes:
     return buffer.getvalue()
 
 
+def keep_original_colour(styled_png: bytes, original_png: bytes) -> bytes:
+    """Keep the style's brushwork but the photograph's own colours.
+
+    Style transfer carries over texture *and* palette, so a net trained on Starry
+    Night paints every photo blue and yellow. When a style is wanted only for how
+    it paints, recombine the **stylised luminance** -- which is where the brush
+    strokes live -- with the **original's chroma** (Gatys et al., "Preserving Color
+    in Neural Artistic Style Transfer").
+
+    The stylised luminance is also rescaled to the photo's mean/standard deviation,
+    otherwise the style's own global brightness bias survives and the result is
+    over- or under-exposed relative to the source.
+    """
+    import cv2
+
+    styled = Image.open(io.BytesIO(styled_png)).convert("RGB")
+    original = Image.open(io.BytesIO(original_png)).convert("RGBA")
+    original_alpha = original.split()[3]
+    original_rgb = original.convert("RGB")
+    if styled.size != original_rgb.size:
+        styled = styled.resize(original_rgb.size, Image.Resampling.LANCZOS)
+
+    styled_ycc = cv2.cvtColor(np.asarray(styled), cv2.COLOR_RGB2YCrCb).astype(np.float32)
+    original_ycc = cv2.cvtColor(np.asarray(original_rgb), cv2.COLOR_RGB2YCrCb).astype(np.float32)
+
+    styled_luma = styled_ycc[..., 0]
+    original_luma = original_ycc[..., 0]
+    matched = (styled_luma - styled_luma.mean()) * (
+        float(original_luma.std()) / (float(styled_luma.std()) + 1e-6)
+    ) + original_luma.mean()
+
+    merged = original_ycc.copy()  # keeps Cr/Cb — the photo's colour
+    merged[..., 0] = np.clip(matched, 0, 255)
+    rgb = cv2.cvtColor(merged.astype(np.uint8), cv2.COLOR_YCrCb2RGB)
+    return _to_png_bytes(_merge_rgb_alpha(Image.fromarray(rgb, "RGB"), original_alpha))
+
+
 # ---------------------------------------------------------------------------
-# Mock provider: deterministic, offline, Pillow-only pixel transforms
+# Algorithmic filter provider (OpenCV NPR, Delaunay, quantisation, grading)
 # ---------------------------------------------------------------------------
 
 
-def _stylize_spiderverse(rgb: Image.Image) -> Image.Image:
-    """Halftone comic look: hard posterize, punchy saturation, ink edges."""
-    posterized = ImageOps.posterize(rgb, 3)
-    saturated = ImageEnhance.Color(posterized).enhance(2.2)
-    edges = ImageOps.invert(rgb.convert("L").filter(ImageFilter.FIND_EDGES))
-    inked_edges = edges.point(lambda p: 0 if p < 200 else 255).convert("RGB")
-    return ImageChops.multiply(saturated, inked_edges)
+class FilterStyleProvider:
+    """Applies a published image-processing technique from ``STYLE_FILTERS``.
 
-
-def _stylize_watercolor(rgb: Image.Image) -> Image.Image:
-    """Soft washes: blur, lower contrast/saturation, warm paper tint."""
-    blurred = rgb.filter(ImageFilter.GaussianBlur(radius=2.5))
-    softened = ImageEnhance.Contrast(blurred).enhance(0.75)
-    desaturated = ImageEnhance.Color(softened).enhance(0.85)
-    warm_overlay = Image.new("RGB", rgb.size, (255, 235, 205))
-    return Image.blend(desaturated, warm_overlay, alpha=0.15)
-
-
-def _stylize_ink_sketch(rgb: Image.Image) -> Image.Image:
-    """Grayscale line art: autocontrast, inverted edge multiply, sharpen."""
-    gray = ImageOps.autocontrast(rgb.convert("L"), cutoff=2)
-    edges = ImageOps.invert(gray.filter(ImageFilter.FIND_EDGES))
-    combined = ImageChops.multiply(gray, edges).filter(ImageFilter.SHARPEN)
-    return ImageOps.autocontrast(combined).convert("RGB")
-
-
-def _stylize_pop_art(rgb: Image.Image) -> Image.Image:
-    """Warhol screenprint: aggressive posterize, max saturation, hue shift."""
-    posterized = ImageOps.posterize(rgb, 2)
-    saturated = ImageEnhance.Color(posterized).enhance(3.0)
-    hue, sat, val = saturated.convert("HSV").split()
-    shifted_hue = hue.point(lambda p: (p + 90) % 256)
-    shifted = Image.merge("HSV", (shifted_hue, sat, val)).convert("RGB")
-    return ImageEnhance.Contrast(shifted).enhance(1.3)
-
-
-def _stylize_oil(rgb: Image.Image) -> Image.Image:
-    """Impasto brushwork: mode-filter smoothing, richer color, sharpened strokes."""
-    smoothed = rgb.filter(ImageFilter.ModeFilter(size=5))
-    saturated = ImageEnhance.Color(smoothed).enhance(1.6)
-    contrasted = ImageEnhance.Contrast(saturated).enhance(1.15)
-    return contrasted.filter(ImageFilter.SHARPEN)
-
-
-_MOCK_TRANSFORMS: dict[str, Callable[[Image.Image], Image.Image]] = {
-    "spiderverse": _stylize_spiderverse,
-    "watercolor": _stylize_watercolor,
-    "ink-sketch": _stylize_ink_sketch,
-    "pop-art": _stylize_pop_art,
-    "oil": _stylize_oil,
-}
-
-
-class MockStyleProvider:
-    """Deterministic, offline style transform using only local Pillow filters.
-
-    Makes no network calls. Each style id maps to a distinct, seed-free
-    pixel transform so different styles are visibly different from one
-    another, while the subject and the original alpha channel (transparency
-    / cutout shape) are always preserved exactly.
+    Fully offline and dependency-light (OpenCV + numpy), and always available —
+    there are no weights to download. Covers the graphic styles (sketch, comic,
+    pixel art, low poly, neon grades) that neural style transfer does poorly.
     """
 
-    name = "mock"
+    name = "filter"
+
+    def _run(self, png_bytes: bytes, style: StyleSpec) -> bytes:
+        from models.style_filters import STYLE_FILTERS
+
+        transform = STYLE_FILTERS.get(style.model)
+        if transform is None:
+            known = ", ".join(sorted(STYLE_FILTERS))
+            raise ValueError(f"no filter '{style.model}' for style {style.id}; known: {known}")
+
+        image = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+        alpha = image.split()[3]
+        result_rgb = transform(np.asarray(image.convert("RGB")))
+        result = Image.fromarray(np.clip(result_rgb, 0, 255).astype(np.uint8), "RGB")
+        if result.size != image.size:
+            result = result.resize(image.size, Image.Resampling.LANCZOS)
+        return _to_png_bytes(_merge_rgb_alpha(result, alpha))
 
     async def stylize(self, png_bytes: bytes, style: StyleSpec) -> bytes:
-        image = Image.open(io.BytesIO(png_bytes))
-        rgb, alpha = _split_rgb_alpha(image)
-        transform = _MOCK_TRANSFORMS.get(style.id)
-        if transform is None:
-            raise ValueError(f"no mock transform registered for style: {style.id}")
-        result_rgb = transform(rgb)
-        result = _merge_rgb_alpha(result_rgb, alpha)
-        return _to_png_bytes(result)
+        # CPU-bound OpenCV work: keep it off the event loop.
+        return await asyncio.to_thread(self._run, png_bytes, style)
+
+
+# ---------------------------------------------------------------------------
+# Local ONNX neural style transfer (fast-neural-style, offline, no API keys)
+# ---------------------------------------------------------------------------
+
+
+class OnnxStyleProvider:
+    """Restyles an image with a fast-neural-style ONNX model, on CPU, offline.
+
+    Uses the pretrained fast-neural-style models from the ONNX Model Zoo
+    (Johnson et al. architecture). The models are fully convolutional, so
+    :func:`~scripts.prep_style_models` rewrites their input/output H/W dims to
+    be dynamic and this provider runs them at up to ``settings.style_max_size``
+    on the longest side -- sharp, bold output with no network calls.
+
+    The original alpha channel is re-applied so a layer's cutout shape survives
+    the RGB-only network (a fully-opaque photo simply round-trips unchanged).
+    """
+
+    name = "onnx"
+
+    def __init__(self, settings: Settings) -> None:
+        self._models_dir = Path(settings.style_models_dir)
+        self._max_size = settings.style_max_size
+        self._intra_op_threads = settings.style_intra_op_threads
+        self._sessions: dict[str, ort.InferenceSession] = {}
+
+    def model_path(self, style: StyleSpec) -> Path:
+        return self._models_dir / f"{style.model}.onnx"
+
+    def is_available(self, style: StyleSpec) -> bool:
+        return self.model_path(style).is_file()
+
+    def _session(self, style: StyleSpec) -> ort.InferenceSession:
+        cached = self._sessions.get(style.model)
+        if cached is not None:
+            return cached
+        import onnxruntime as ort  # local import: heavy, optional dependency
+
+        path = self.model_path(style)
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"ONNX style model not found: {path}. Run scripts/prep-style-models.py."
+            )
+        # Bound the per-session thread pool and disable the arena allocator: the
+        # arena grows to the peak activation size and never returns it, so five
+        # cached sessions retain gigabytes long after their last run.
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = self._intra_op_threads
+        options.inter_op_num_threads = 1
+        options.enable_cpu_mem_arena = False
+        session = ort.InferenceSession(
+            str(path), sess_options=options, providers=["CPUExecutionProvider"]
+        )
+        self._sessions[style.model] = session
+        return session
+
+    def _run(self, png_bytes: bytes, style: StyleSpec) -> bytes:
+        import numpy as np
+
+        image = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+        original_alpha = image.split()[3]
+        rgb = image.convert("RGB")
+
+        # Downscale so the longest side <= max_size (fully-convolutional model
+        # runs at any size; this bounds CPU cost). Never upscale.
+        width, height = rgb.size
+        scale = min(1.0, self._max_size / max(width, height))
+        work = (
+            rgb.resize((round(width * scale), round(height * scale)), Image.Resampling.LANCZOS)
+            if scale < 1.0
+            else rgb
+        )
+
+        tensor = np.asarray(work, dtype=np.float32).transpose(2, 0, 1)[None]  # 1,3,H,W (0-255)
+        session = self._session(style)
+        output = session.run(None, {session.get_inputs()[0].name: tensor})[0][0]
+        styled = np.clip(output, 0, 255).astype(np.uint8).transpose(1, 2, 0)  # H,W,3
+
+        result = Image.fromarray(styled, mode="RGB")
+        if result.size != rgb.size:
+            result = result.resize(rgb.size, Image.Resampling.LANCZOS)
+        return _to_png_bytes(_merge_rgb_alpha(result, original_alpha))
+
+    async def stylize(self, png_bytes: bytes, style: StyleSpec) -> bytes:
+        # onnxruntime is synchronous + CPU-bound: run it off the event loop.
+        return await asyncio.to_thread(self._run, png_bytes, style)
+
+
+# ---------------------------------------------------------------------------
+# Torch7 fast-neural-style (Johnson et al.'s original released models)
+# ---------------------------------------------------------------------------
+
+
+class TorchStyleProvider:
+    """Runs a pretrained Torch7 fast-neural-style net through ``cv2.dnn``.
+
+    Johnson released weights the ONNX Model Zoo never converted -- notably
+    **Starry Night**, the actual Van Gogh style. OpenCV reads the ``.t7`` files
+    directly, so no torch install is needed; it does require OpenCV 4.x, as
+    OpenCV 5 dropped the Torch importer (hence the pin in pyproject).
+    """
+
+    name = "torch"
+    #: These nets were trained on BGR input with the ImageNet mean subtracted.
+    _MEAN = (103.939, 116.779, 123.68)
+
+    def __init__(self, models_dir: str, max_size: int) -> None:
+        self._models_dir = Path(models_dir)
+        self._max_size = max_size
+
+    def model_path(self, style: StyleSpec) -> Path:
+        return self._models_dir / f"{style.model}.t7"
+
+    def is_available(self, style: StyleSpec) -> bool:
+        # A failed download leaves a tiny HTML error page behind; require real weights.
+        path = self.model_path(style)
+        return path.is_file() and path.stat().st_size > 1_000_000
+
+    def _run(self, png_bytes: bytes, style: StyleSpec) -> bytes:
+        import cv2
+
+        image = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+        original_alpha = image.split()[3]
+        rgb = image.convert("RGB")
+
+        width, height = rgb.size
+        scale = min(1.0, self._max_size / max(width, height))
+        work = (
+            rgb.resize((round(width * scale), round(height * scale)), Image.Resampling.LANCZOS)
+            if scale < 1.0
+            else rgb
+        )
+        bgr = cv2.cvtColor(np.asarray(work), cv2.COLOR_RGB2BGR)
+
+        net = cv2.dnn.readNetFromTorch(str(self.model_path(style)))
+        work_h, work_w = bgr.shape[:2]
+        net.setInput(
+            cv2.dnn.blobFromImage(
+                bgr, 1.0, (work_w, work_h), self._MEAN, swapRB=False, crop=False
+            )
+        )
+        out = net.forward()
+        # The net's output can be a couple of pixels off the input (conv rounding),
+        # so reshape from the ACTUAL output dims and resize back afterwards.
+        planes = out.reshape(out.shape[1], out.shape[2], out.shape[3]).copy()
+        for channel in range(3):
+            planes[channel] += self._MEAN[channel]
+        styled_bgr = np.clip(planes.transpose(1, 2, 0), 0, 255).astype(np.uint8)
+        styled = cv2.cvtColor(styled_bgr, cv2.COLOR_BGR2RGB)
+
+        result = Image.fromarray(styled, mode="RGB")
+        if result.size != rgb.size:
+            result = result.resize(rgb.size, Image.Resampling.LANCZOS)
+        return _to_png_bytes(_merge_rgb_alpha(result, original_alpha))
+
+    async def stylize(self, png_bytes: bytes, style: StyleSpec) -> bytes:
+        return await asyncio.to_thread(self._run, png_bytes, style)
+
+
+# ---------------------------------------------------------------------------
+# AnimeGANv3 (Ghibli / Miyazaki style)
+# ---------------------------------------------------------------------------
+
+
+class AnimeStyleProvider:
+    """Runs AnimeGANv3 (ONNX) -- the ``Hayao`` weights give Miyazaki backgrounds.
+
+    Unlike the style-transfer nets this is NHWC with inputs scaled to [-1, 1], and
+    its generator needs both dimensions to be a multiple of 8.
+    """
+
+    name = "anime"
+    _MULTIPLE = 8
+
+    def __init__(self, models_dir: str, max_size: int, intra_op_threads: int = 4) -> None:
+        self._models_dir = Path(models_dir)
+        self._max_size = max_size
+        self._threads = intra_op_threads
+        self._sessions: dict[str, ort.InferenceSession] = {}
+
+    def model_path(self, style: StyleSpec) -> Path:
+        return self._models_dir / f"{style.model}.onnx"
+
+    def is_available(self, style: StyleSpec) -> bool:
+        return self.model_path(style).is_file()
+
+    def _session(self, style: StyleSpec) -> ort.InferenceSession:
+        cached = self._sessions.get(style.model)
+        if cached is not None:
+            return cached
+        import onnxruntime as ort
+
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = self._threads
+        options.inter_op_num_threads = 1
+        options.enable_cpu_mem_arena = False
+        session = ort.InferenceSession(
+            str(self.model_path(style)), sess_options=options, providers=["CPUExecutionProvider"]
+        )
+        self._sessions[style.model] = session
+        return session
+
+    def _run(self, png_bytes: bytes, style: StyleSpec) -> bytes:
+        image = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+        original_alpha = image.split()[3]
+        rgb = image.convert("RGB")
+
+        width, height = rgb.size
+        scale = min(1.0, self._max_size / max(width, height))
+        work_w = max(self._MULTIPLE, int(width * scale) // self._MULTIPLE * self._MULTIPLE)
+        work_h = max(self._MULTIPLE, int(height * scale) // self._MULTIPLE * self._MULTIPLE)
+        work = np.asarray(rgb.resize((work_w, work_h), Image.Resampling.LANCZOS), np.float32)
+
+        session = self._session(style)
+        tensor = (work / 127.5 - 1.0)[None]
+        out = np.asarray(session.run(None, {session.get_inputs()[0].name: tensor})[0])
+        styled = ((np.squeeze(out) + 1.0) * 127.5).clip(0, 255).astype(np.uint8)
+
+        result = Image.fromarray(styled, mode="RGB")
+        if result.size != rgb.size:
+            result = result.resize(rgb.size, Image.Resampling.LANCZOS)
+        return _to_png_bytes(_merge_rgb_alpha(result, original_alpha))
+
+    async def stylize(self, png_bytes: bytes, style: StyleSpec) -> bytes:
+        return await asyncio.to_thread(self._run, png_bytes, style)
+
+
+# ---------------------------------------------------------------------------
+# Local provider: dispatches each style to its own engine
+# ---------------------------------------------------------------------------
+
+
+class LocalStyleProvider:
+    """The default provider: fully local, no API keys.
+
+    Routes each :class:`StyleSpec` by ``kind`` — pretrained fast-neural-style
+    networks for the painterly styles, algorithmic filters for the graphic ones.
+    :meth:`is_available` lets the caller skip styles whose (git-ignored) ONNX
+    weights have not been downloaded yet, instead of failing the whole run.
+    """
+
+    name = "local"
+
+    def __init__(self, settings: Settings) -> None:
+        self._filter = FilterStyleProvider()
+        self._engines: dict[str, Any] = {
+            "onnx": OnnxStyleProvider(settings),
+            "torch": TorchStyleProvider(settings.style_models_dir, settings.style_max_size),
+            "anime": AnimeStyleProvider(
+                settings.anime_models_dir, settings.style_max_size, settings.style_intra_op_threads
+            ),
+        }
+
+    def is_available(self, style: StyleSpec) -> bool:
+        if style.kind == "filter":
+            return True  # algorithmic styles need no weights
+        engine = self._engines.get(style.kind)
+        return bool(engine and engine.is_available(style))
+
+    async def stylize(self, png_bytes: bytes, style: StyleSpec) -> bytes:
+        engine = self._engines.get(style.kind, self._filter)
+        result: bytes = await engine.stylize(png_bytes, style)
+        if style.preserve_color:
+            # Brushwork-only styles: drop the net's palette, keep the photo's.
+            result = await asyncio.to_thread(keep_original_colour, result, png_bytes)
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -295,21 +560,21 @@ class FalImg2ImgStyleProvider:
 def get_style_provider(settings: Settings | None = None) -> StyleProvider:
     """Select a style provider based on ``AI_PROVIDER_MODE`` and credentials.
 
-    Mock mode always wins. In live mode, OpenAI is preferred when
+    The local engine (pretrained ONNX networks + algorithmic filters, no keys) is
+    the default and is used in mock mode. In live mode, OpenAI is preferred when
     ``OPENAI_API_KEY`` is set, then fal when ``FAL_KEY`` is set; if neither
-    credential is present this falls back to the mock provider and logs a
-    warning rather than failing the caller outright.
+    credential is present this falls back to the local engine.
     """
     resolved = settings if settings is not None else get_settings()
     if resolved.is_mock_mode:
-        return MockStyleProvider()
+        return LocalStyleProvider(resolved)
     if resolved.openai_api_key:
         return OpenAIImageStyleProvider(resolved)
     if resolved.fal_key:
         return FalImg2ImgStyleProvider(resolved)
     logger.warning(
         "AI_PROVIDER_MODE=%s but neither OPENAI_API_KEY nor FAL_KEY is set; "
-        "falling back to MockStyleProvider.",
+        "using the local style engine.",
         resolved.ai_provider_mode,
     )
-    return MockStyleProvider()
+    return LocalStyleProvider(resolved)

@@ -7,7 +7,10 @@ mock mode.
 
 from __future__ import annotations
 
+import json
+import logging
 import os
+from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +20,9 @@ from pydantic.alias_generators import to_camel
 from app.config import get_settings
 from app.jobs import PipelineJob, job_store
 from app.separate import image_hash, separate_image
+from app.stylize import stylize_scene
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
@@ -166,10 +172,23 @@ async def process_scene(file: UploadFile = File(...)) -> ProcessSceneResponse:
                 detail=f"could not process image: {type(exc).__name__}",
             ) from exc
 
+    # Restyle the whole photo into the art styles the "paint" brush reveals.
+    # Non-fatal: the scene is fully usable (original layers) even if this fails.
+    if not os.path.exists(os.path.join(out_dir, "styles", "manifest.json")):
+        try:
+            await stylize_scene(Path(out_dir))
+        except Exception:  # noqa: BLE001
+            logger.warning("style generation failed for scene %s", scene_id, exc_info=True)
+
+    # The separator chooses its own layer shape (subject cutout vs depth bands),
+    # so report what was actually written rather than a fixed count.
+    with open(scene_json, encoding="utf-8") as f:
+        layer_count = len(json.load(f).get("layers", []))
+
     base_url = f"/scenes/uploads/{scene_id}"
     return ProcessSceneResponse(
         scene_id=scene_id,
         base_url=f"{base_url}/",
         scene_url=f"{base_url}/scene.json",
-        layers=3,
+        layers=layer_count,
     )

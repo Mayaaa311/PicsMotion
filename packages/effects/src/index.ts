@@ -56,3 +56,4 @@ export {
 export type { SpiderVerseConfig, SpiderVerseOptions } from './spiderverse';
 export { PaintAccumulator } from './paint-buffer';
 export type { StampPoint } from './paint-buffer';
+export { StylePaintField } from './style-paint';

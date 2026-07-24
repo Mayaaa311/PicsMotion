@@ -36,6 +36,8 @@ interface LayerPlaneProps {
   stage: Size;
   index: number;
   assetBaseUrl: string;
+  /** Plain mode: unlit textured plane only — no wind/water/paper shader. */
+  plain?: boolean;
 }
 
 /** Minimum seconds between drag-spawned ripples, so a drag doesn't flood the pool. */
@@ -53,10 +55,12 @@ const RIPPLE_BEAT_INTERVAL = 0.5;
  * photo pixels pass through unlit and un-tone-mapped. Transparent planes are
  * painted back-to-front via `renderOrder` with `depthWrite` off.
  */
-export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProps) {
+export function LayerPlane({ layer, stage, index, assetBaseUrl, plain = false }: LayerPlaneProps) {
   const { preset, pointerRef, getAudioFrame } = useRuntime();
   const groupRef = useRef<THREE.Group>(null);
-  const activeStyle = useRuntimeStore((s) => s.activeStyle);
+  const styleEngaged = useRuntimeStore((s) => s.styleEngaged);
+  const styleList = useRuntimeStore((s) => s.styleList);
+  const usedStyles = useRuntimeStore((s) => s.usedStyles);
 
   const url = assetBaseUrl + layer.assetUrl;
   const texture = useTexture(url);
@@ -79,6 +83,18 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProp
 
   /** The material for this layer, rebuilt only when the plan/texture changes. */
   const material = useMemo<THREE.Material>(() => {
+    // Plain mode: an unlit textured plane, nothing else — no sway or ripple, just
+    // the photo parallaxing. (The preset shader effects are kept for future use.)
+    if (plain) {
+      return new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: layer.baseOpacity,
+        depthWrite: false,
+        toneMapped: false,
+        side: THREE.FrontSide,
+      });
+    }
     if (plan.material === 'wind' && presetFx.wind?.enabled !== false) {
       return createWindMaterial(
         texture,
@@ -110,7 +126,7 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProp
       toneMapped: false,
       side: THREE.FrontSide,
     });
-  }, [plan.material, plan.windStiffness, presetFx, texture, seed, layer.baseOpacity, stageAspect]);
+  }, [plain, plan.material, plan.windStiffness, presetFx, texture, seed, layer.baseOpacity, stageAspect]);
 
   // Dispose the previous material whenever it is replaced or we unmount.
   useEffect(() => () => material.dispose(), [material]);
@@ -221,63 +237,137 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl }: LayerPlaneProp
         <planeGeometry args={[size.width, size.height]} />
       </mesh>
 
-      {/* AI art-style overlay: the restyled version of this layer, cross-faded in.
-          Keyed by style so switching remounts + fades from 0. Kept in the same
-          group so it inherits depth + parallax. */}
-      {activeStyle && (
-        <Suspense fallback={null}>
-          <StyledOverlay
-            key={activeStyle}
-            url={`${assetBaseUrl}styles/${activeStyle}/${layer.id}.png`}
-            size={size}
-            renderOrder={index}
-            rotation={layer.baseRotation}
-            targetOpacity={layer.baseOpacity}
-          />
-        </Suspense>
-      )}
+      {/* AI art-style reveal: each cursor stroke shows the style it was painted
+          with (per-pixel style id from the paint field), masked by this layer's
+          alpha. The base photo below stays pixel-sharp; style is "brushed in".
+          Kept in the same group so it inherits depth + parallax. */}
+      {styleEngaged &&
+        usedStyles.map((styleId) => {
+          const styleIndex = styleList.indexOf(styleId);
+          if (styleIndex < 0) return null;
+          return (
+            <Suspense key={styleId} fallback={null}>
+              <StyledOverlay
+                styledUrl={`${assetBaseUrl}styles/${styleId}.png`}
+                styleIndex={styleIndex}
+                baseTexture={texture}
+                size={size}
+                renderOrder={index}
+                rotation={layer.baseRotation}
+                opacity={layer.baseOpacity}
+              />
+            </Suspense>
+          );
+        })}
     </group>
   );
 }
 
 interface StyledOverlayProps {
-  url: string;
+  /** Whole-frame styled photo for THIS style. */
+  styledUrl: string;
+  /** This style's index in the paint field's style-id channel. */
+  styleIndex: number;
+  baseTexture: THREE.Texture;
   size: Size;
   renderOrder: number;
   rotation: number;
-  targetOpacity: number;
+  opacity: number;
 }
 
-/** Restyled copy of a layer that fades in over the base (same geometry/position). */
-function StyledOverlay({ url, size, renderOrder, rotation, targetOpacity }: StyledOverlayProps) {
-  const texture = useTexture(url);
-  const matRef = useRef<THREE.MeshBasicMaterial>(null);
-  useMemo(() => {
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 4;
-    texture.needsUpdate = true;
-  }, [texture]);
+const STYLE_REVEAL_VERT = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
 
-  useFrame((_, rawDelta) => {
-    const m = matRef.current;
-    if (!m) return;
-    if (useRuntimeStore.getState().paused) return;
-    m.opacity = damp(m.opacity, targetOpacity, 4, Math.min(rawDelta, 1 / 30));
+// Show THIS style only where the paint field says this style owns the pixel.
+// The paint field's R channel is strength, G is the style index — so one mesh
+// per style keeps the shader trivial and imposes no limit on how many styles
+// exist (no texture-unit ceiling). Styled PNGs are sRGB-encoded; convert to
+// linear so the renderer's sRGB output re-encodes to the right colour.
+const STYLE_REVEAL_FRAG = /* glsl */ `
+  uniform sampler2D uStyled;
+  uniform sampler2D uBase;
+  uniform sampler2D uPaint;
+  uniform float uOpacity;
+  uniform float uStyleIndex;
+  varying vec2 vUv;
+  vec3 srgbToLinear(vec3 c) {
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+  }
+  void main() {
+    vec2 pv = texture2D(uPaint, vUv).rg;
+    if (abs(floor(pv.g + 0.5) - uStyleIndex) > 0.5) discard; // another style owns it
+    float strength = clamp(pv.r, 0.0, 1.0);
+    float baseA = texture2D(uBase, vUv).a;
+    float a = baseA * strength * uOpacity;
+    if (a <= 0.003) discard;
+    gl_FragColor = vec4(srgbToLinear(texture2D(uStyled, vUv).rgb), a);
+  }
+`;
+
+/**
+ * Reveals ONE painted art style over one layer. Pixels the cursor last painted
+ * in a different style are discarded, so mounting one of these per style shows
+ * every stroke in the style it was painted with — and the sharp original stays
+ * visible everywhere the cursor hasn't brushed.
+ */
+function StyledOverlay({
+  styledUrl,
+  styleIndex,
+  baseTexture,
+  size,
+  renderOrder,
+  rotation,
+  opacity,
+}: StyledOverlayProps) {
+  const { paintFieldRef } = useRuntime();
+  const styled = useTexture(styledUrl);
+  useMemo(() => {
+    // Raw sampler read (we convert sRGB→linear in the shader), high anisotropy.
+    styled.colorSpace = THREE.NoColorSpace;
+    styled.anisotropy = 8;
+    styled.needsUpdate = true;
+  }, [styled]);
+
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: STYLE_REVEAL_VERT,
+        fragmentShader: STYLE_REVEAL_FRAG,
+        transparent: true,
+        depthWrite: false,
+        depthTest: true,
+        uniforms: {
+          uStyled: { value: styled },
+          uBase: { value: baseTexture },
+          uPaint: { value: null },
+          uOpacity: { value: opacity },
+          uStyleIndex: { value: styleIndex },
+        },
+      }),
+    [styled, baseTexture, opacity, styleIndex],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+
+  useFrame(() => {
+    const field = paintFieldRef.current;
+    material.uniforms.uPaint!.value = field ? field.texture : null;
+    material.visible = field != null;
   });
 
   return (
     // Small z nudge so it sits just in front of the base at the same depth.
-    <mesh renderOrder={renderOrder + 1} rotation={[0, 0, rotation]} position={[0, 0, 0.003]}>
+    <mesh
+      renderOrder={renderOrder + 1}
+      rotation={[0, 0, rotation]}
+      position={[0, 0, 0.003]}
+      material={material}
+    >
       <planeGeometry args={[size.width, size.height]} />
-      <meshBasicMaterial
-        ref={matRef}
-        map={texture}
-        transparent
-        opacity={0}
-        depthWrite={false}
-        toneMapped={false}
-        side={THREE.FrontSide}
-      />
     </mesh>
   );
 }

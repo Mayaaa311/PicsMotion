@@ -1,175 +1,191 @@
 {
   "version": "1.0",
   "id": "yosemite-falls",
-  "title": "Yosemite Falls — Through the Pines",
-  "width": 1280,
-  "height": 1920,
-  "aspectRatio": 0.6667,
+  "title": "Yosemite Falls \u2014 Through the Pines",
+  "width": 1067,
+  "height": 1600,
+  "aspectRatio": 0.6669,
   "originalImageUrl": "original/normalized.png",
   "backgroundPlateUrl": "background.png",
   "preset": "soft-nature",
   "visualAnalysis": {
-    "sceneType": "landscape",
-    "mainSubject": "a tall waterfall on a granite cliff",
-    "secondarySubjects": ["framing pine trees", "valley path"],
-    "foregroundCandidates": ["path", "stone walls"],
-    "midgroundCandidates": ["pine trees"],
-    "background": "granite cliff, waterfall and blue sky",
-    "waterRegions": ["waterfall"],
-    "vegetationRegions": ["pine trees"],
-    "skyRegions": ["sky"],
-    "lightingDirection": "high, cool daylight",
-    "depthOfField": "deep",
-    "cameraStyle": "vertical landscape",
-    "dominantColors": ["#6f86a6", "#b7ac97", "#2f4f34"],
-    "mood": "grand, still and airy",
-    "suggestedPreset": "soft-nature",
-    "suggestedMotionTags": ["sway", "drift"],
-    "lockedObjects": ["path", "people"],
-    "expectedSegmentationDifficulty": "medium",
-    "inpaintingRiskAreas": ["waterfall edges"]
+    "sceneType": "photo",
+    "mainSubject": "Yosemite Falls \u2014 Through the Pines"
   },
   "layers": [
     {
       "id": "plate",
-      "name": "Photograph (background plate)",
-      "semanticLabel": "scene",
+      "name": "Plate",
+      "semanticLabel": "background",
       "role": "background",
       "assetUrl": "layers/plate.png",
-      "bounds": { "x": 0, "y": 0, "width": 1, "height": 1 },
-      "anchor": { "x": 0.5, "y": 0.5 },
-      "depth": 0.85,
-      "depthVariance": 0.2,
-      "baseScale": 1.08,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "depth": 0.94,
+      "depthVariance": 0.1,
+      "baseScale": 1.06,
       "baseRotation": 0,
       "baseOpacity": 1,
       "movement": {
         "enabled": true,
         "maxOffsetX": 0.012,
-        "maxOffsetY": 0.008,
+        "maxOffsetY": 0.0072,
         "maxOffsetZ": 0,
         "maxRotation": 0,
-        "parallaxStrength": 0.05,
+        "parallaxStrength": 0.04,
         "dragEnabled": false,
-        "returnMode": "fixed"
+        "returnMode": "spring"
       },
       "interactionTags": [],
-      "materialTags": ["photo"],
-      "audioSensitivity": { "bass": 0.15, "lowMid": 0.05, "highMid": 0, "treble": 0, "beat": 0.05, "loudness": 0.15 },
-      "importance": 0.25,
+      "materialTags": [
+        "photo"
+      ],
+      "audioSensitivity": {
+        "bass": 0.15,
+        "lowMid": 0.1,
+        "highMid": 0.05,
+        "treble": 0.05,
+        "beat": 0.1,
+        "loudness": 0.15
+      },
+      "importance": 0.5,
       "locked": true,
-      "revealBudget": { "maxOffsetX": 0.02, "maxOffsetY": 0.02, "confidence": 0.5 },
+      "revealBudget": {
+        "maxOffsetX": 0.022,
+        "maxOffsetY": 0.012,
+        "confidence": 0.6
+      },
       "provenance": {
         "visiblePixels": "mixed",
-        "sourceImageHash": "photo-854",
+        "sourceImageHash": "upload",
         "completionProvider": "opencv-telea-cpu"
       }
     },
     {
-      "id": "waterfall",
-      "name": "Waterfall (subject)",
-      "semanticLabel": "waterfall",
-      "role": "primary-subject",
-      "assetUrl": "layers/waterfall.png",
-      "bounds": { "x": 0, "y": 0, "width": 1, "height": 1 },
-      "anchor": { "x": 0.56, "y": 0.4 },
-      "depth": 0.5,
-      "depthVariance": 0.1,
-      "baseScale": 1.0,
-      "baseRotation": 0,
-      "baseOpacity": 1,
-      "movement": {
-        "enabled": true,
-        "maxOffsetX": 0.012,
-        "maxOffsetY": 0.008,
-        "maxOffsetZ": 0,
-        "maxRotation": 0,
-        "parallaxStrength": 0.06,
-        "dragEnabled": false,
-        "returnMode": "spring"
-      },
-      "interactionTags": [],
-      "materialTags": ["waterfall"],
-      "audioSensitivity": { "bass": 0.15, "lowMid": 0.15, "highMid": 0.1, "treble": 0.1, "beat": 0.15, "loudness": 0.2 },
-      "importance": 1.0,
-      "locked": false,
-      "revealBudget": { "maxOffsetX": 0.015, "maxOffsetY": 0.01, "confidence": 0.7 },
-      "provenance": { "visiblePixels": "original", "sourceImageHash": "photo-854" }
-    },
-    {
-      "id": "foliage",
-      "name": "Pine Trees",
-      "semanticLabel": "pine trees",
-      "role": "midground",
-      "assetUrl": "layers/foliage.png",
-      "bounds": { "x": 0, "y": 0, "width": 1, "height": 1 },
-      "anchor": { "x": 0.5, "y": 0.6 },
-      "depth": 0.4,
-      "depthVariance": 0.15,
-      "baseScale": 1.0,
-      "baseRotation": 0,
-      "baseOpacity": 1,
-      "movement": {
-        "enabled": true,
-        "maxOffsetX": 0.03,
-        "maxOffsetY": 0.018,
-        "maxOffsetZ": 0,
-        "maxRotation": 0,
-        "parallaxStrength": 0.22,
-        "dragEnabled": false,
-        "returnMode": "spring"
-      },
-      "interactionTags": ["wind", "sway"],
-      "materialTags": ["foliage"],
-      "audioSensitivity": { "bass": 0.1, "lowMid": 0.3, "highMid": 0.2, "treble": 0.2, "beat": 0.1, "loudness": 0.2 },
-      "importance": 0.4,
-      "locked": false,
-      "revealBudget": { "maxOffsetX": 0.04, "maxOffsetY": 0.03, "confidence": 0.8 },
-      "provenance": { "visiblePixels": "original", "sourceImageHash": "photo-854" }
-    },
-    {
-      "id": "foreground",
-      "name": "Path and Walls",
-      "semanticLabel": "path",
+      "id": "near",
+      "name": "Near",
+      "semanticLabel": "foreground",
       "role": "foreground",
-      "assetUrl": "layers/foreground.png",
-      "bounds": { "x": 0, "y": 0, "width": 1, "height": 1 },
-      "anchor": { "x": 0.5, "y": 1.0 },
-      "depth": 0.14,
+      "assetUrl": "layers/near.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "depth": 0.698,
       "depthVariance": 0.1,
-      "baseScale": 1.0,
+      "baseScale": 1.06,
       "baseRotation": 0,
       "baseOpacity": 1,
       "movement": {
         "enabled": true,
-        "maxOffsetX": 0.04,
-        "maxOffsetY": 0.02,
+        "maxOffsetX": 0.027084218978881837,
+        "maxOffsetY": 0.0162505313873291,
         "maxOffsetZ": 0,
         "maxRotation": 0,
-        "parallaxStrength": 0.4,
+        "parallaxStrength": 0.17670743942260742,
         "dragEnabled": false,
         "returnMode": "spring"
       },
       "interactionTags": [],
-      "materialTags": ["ground"],
-      "audioSensitivity": { "bass": 0.15, "lowMid": 0.1, "highMid": 0.05, "treble": 0.05, "beat": 0.1, "loudness": 0.15 },
+      "materialTags": [
+        "photo"
+      ],
+      "audioSensitivity": {
+        "bass": 0.15,
+        "lowMid": 0.1,
+        "highMid": 0.05,
+        "treble": 0.05,
+        "beat": 0.1,
+        "loudness": 0.15
+      },
       "importance": 0.5,
       "locked": false,
-      "revealBudget": { "maxOffsetX": 0.05, "maxOffsetY": 0.03, "confidence": 0.8 },
-      "provenance": { "visiblePixels": "original", "sourceImageHash": "photo-854" }
+      "revealBudget": {
+        "maxOffsetX": 0.03708421897888184,
+        "maxOffsetY": 0.027084218978881837,
+        "confidence": 0.6
+      },
+      "provenance": {
+        "visiblePixels": "original",
+        "sourceImageHash": "upload"
+      }
+    },
+    {
+      "id": "subject",
+      "name": "Subject",
+      "semanticLabel": "primary-subject",
+      "role": "primary-subject",
+      "assetUrl": "layers/subject.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "depth": 0.928,
+      "depthVariance": 0.1,
+      "baseScale": 1.06,
+      "baseRotation": 0,
+      "baseOpacity": 1,
+      "movement": {
+        "enabled": true,
+        "maxOffsetX": 0.01559351485967636,
+        "maxOffsetY": 0.009356108915805817,
+        "maxOffsetZ": 0,
+        "maxRotation": 0,
+        "parallaxStrength": 0.08018552482128144,
+        "dragEnabled": false,
+        "returnMode": "spring"
+      },
+      "interactionTags": [],
+      "materialTags": [
+        "photo"
+      ],
+      "audioSensitivity": {
+        "bass": 0.15,
+        "lowMid": 0.1,
+        "highMid": 0.05,
+        "treble": 0.05,
+        "beat": 0.1,
+        "loudness": 0.15
+      },
+      "importance": 0.5,
+      "locked": false,
+      "revealBudget": {
+        "maxOffsetX": 0.025593514859676363,
+        "maxOffsetY": 0.01559351485967636,
+        "confidence": 0.6
+      },
+      "provenance": {
+        "visiblePixels": "original",
+        "sourceImageHash": "upload"
+      }
     }
   ],
   "atmosphere": {
-    "fog": { "enabled": true, "density": 0.2, "color": "#eaf1f8", "layers": 1 },
-    "ambientLight": 1,
-    "vignette": 0.06,
-    "grain": 0.01
+    "vignette": 0.05
   },
   "camera": {
     "fov": 45,
     "parallaxStrength": 0.16,
-    "zoomResponse": 0.03,
-    "shakeStrength": 0,
     "driftStrength": 0.02
   },
   "audioBindings": [
@@ -179,21 +195,15 @@
       "scale": 0.22,
       "offset": 0,
       "smoothing": 0.2,
-      "clamp": [0, 0.28],
+      "clamp": [
+        0,
+        0.28
+      ],
       "curve": "easeOut"
-    },
-    {
-      "source": "beatPulse",
-      "target": "camera.push",
-      "scale": 0.1,
-      "offset": 0,
-      "smoothing": 0.3,
-      "clamp": [0, 0.12],
-      "curve": "linear"
     }
   ],
   "metadata": {
     "createdAt": "2026-07-23T00:00:00Z",
-    "pipelineVersion": "0.2.0-cpu-separation+inpaint"
+    "pipelineVersion": "0.3.0-cpu-depth-guided+band-inpaint"
   }
 }

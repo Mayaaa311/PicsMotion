@@ -10,9 +10,12 @@ import { useRuntime } from '../context';
 import { computeStageSize, visibleWorldSize } from '../math/coordinates';
 import { useRuntimeStore } from '../store';
 import { LayerPlane } from './LayerPlane';
+import { PaintField } from './PaintField';
 
 interface SceneContentProps {
   assetBaseUrl: string;
+  /** Plain mode: layers + paintbrush only, no ambient effects (fog/particles/…). */
+  plain?: boolean;
 }
 
 /**
@@ -21,11 +24,12 @@ interface SceneContentProps {
  * sunlight) configured for the active preset. Recomputes stage only when the
  * viewport or camera FOV changes.
  */
-export function SceneContent({ assetBaseUrl }: SceneContentProps) {
+export function SceneContent({ assetBaseUrl, plain = false }: SceneContentProps) {
   const { scene, preset, getAudioFrame, pointerRef } = useRuntime();
   const size = useThree((s) => s.size);
   const quality = useRuntimeStore((s) => s.quality);
   const reducedMotion = useRuntimeStore((s) => s.reducedMotion);
+  const styleEngaged = useRuntimeStore((s) => s.styleEngaged);
 
   const getPointer = useMemo(
     () => () => ({
@@ -36,10 +40,10 @@ export function SceneContent({ assetBaseUrl }: SceneContentProps) {
     [pointerRef],
   );
 
-  const stage = useMemo(() => {
+  const { stage, visible } = useMemo(() => {
     const aspect = size.width / Math.max(1, size.height);
-    const visible = visibleWorldSize(scene.camera.fov, CAMERA_DISTANCE, aspect);
-    return computeStageSize(scene.aspectRatio, visible);
+    const visibleSize = visibleWorldSize(scene.camera.fov, CAMERA_DISTANCE, aspect);
+    return { stage: computeStageSize(scene.aspectRatio, visibleSize), visible: visibleSize };
   }, [size.width, size.height, scene.camera.fov, scene.aspectRatio]);
 
   // Render far (depth→1) first so nearer layers paint on top.
@@ -52,6 +56,12 @@ export function SceneContent({ assetBaseUrl }: SceneContentProps) {
 
   return (
     <group>
+      {/* Cursor "paint" field that reveals each stroke's AI art style. Mounted
+          once styling is engaged (kept mounted afterwards so painted strokes
+          persist even when switched back to Original), so it costs nothing on an
+          untouched scene. */}
+      {styleEngaged && <PaintField stage={stage} visible={visible} getPointer={getPointer} />}
+
       {ordered.map((layer, index) => (
         <LayerPlane
           key={layer.id}
@@ -59,10 +69,13 @@ export function SceneContent({ assetBaseUrl }: SceneContentProps) {
           stage={stage}
           index={index}
           assetBaseUrl={assetBaseUrl}
+          plain={plain}
         />
       ))}
 
-      {fx.fog?.enabled !== false && fx.fog && (
+      {/* Ambient preset effects. Skipped in plain mode so nothing tints, fogs or
+          lights the photo before the cursor paints a style in. */}
+      {!plain && fx.fog?.enabled !== false && fx.fog && (
         <FogPlanes
           config={fx.fog}
           stage={stage}
@@ -72,7 +85,7 @@ export function SceneContent({ assetBaseUrl }: SceneContentProps) {
           quality={quality}
         />
       )}
-      {fx.particles?.enabled !== false && fx.particles && (
+      {!plain && fx.particles?.enabled !== false && fx.particles && (
         <ParticleField
           config={fx.particles}
           stage={stage}
@@ -81,7 +94,7 @@ export function SceneContent({ assetBaseUrl }: SceneContentProps) {
           quality={quality}
         />
       )}
-      {fx.sunlight?.enabled !== false && fx.sunlight && (
+      {!plain && fx.sunlight?.enabled !== false && fx.sunlight && (
         <SunlightGlow
           config={fx.sunlight}
           stage={stage}
@@ -89,7 +102,7 @@ export function SceneContent({ assetBaseUrl }: SceneContentProps) {
           reducedMotion={reducedMotion}
         />
       )}
-      {fx.halo?.enabled !== false && fx.halo && (
+      {!plain && fx.halo?.enabled !== false && fx.halo && (
         <CursorHalo
           config={fx.halo}
           stage={stage}

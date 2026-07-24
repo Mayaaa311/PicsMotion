@@ -1,5 +1,6 @@
 'use client';
 
+import type { StylePaintField } from '@interactive-photo/effects';
 import type {
   AudioFrame,
   PointerFieldState,
@@ -22,6 +23,12 @@ export interface RuntimeContextValue {
   bus: SceneEventBus;
   /** Optional: read the current normalized audio frame (never an AnalyserNode). */
   getAudioFrame: AudioFrameAccessor;
+  /**
+   * Shared cursor "paint" field (picture-UV; per-pixel strength + style id),
+   * owned by {@link PaintField} and sampled by each layer's styled overlay to
+   * reveal each stroke's own AI art style where painted. Null until engaged.
+   */
+  paintFieldRef: MutableRefObject<StylePaintField | null>;
 }
 
 const RuntimeContext = createContext<RuntimeContextValue | null>(null);

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import sys
 from dataclasses import dataclass, field
 
 # Load a local .env if python-dotenv is available; otherwise rely on the

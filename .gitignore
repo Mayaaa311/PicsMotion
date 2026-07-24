@@ -62,3 +62,9 @@ music/
 apps/web/public/scenes/*/styles/
 apps/web/public/scenes/gallery/
 apps/web/public/scenes/uploads/
+
+# ---- Downloaded ONNX style models (fetch via scripts) ----
+apps/web/public/models/
+
+# Local Claude agent memory (not product code)
+.claude/agent-memory/

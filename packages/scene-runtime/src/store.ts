@@ -22,6 +22,20 @@ export interface RuntimeState {
   spiderPalette: number;
   /** Active AI art style id (from the scene's styles manifest), or null for the original. */
   activeStyle: string | null;
+  /** Ordered style ids for the current scene → maps id ↔ paint-buffer style index. */
+  styleList: string[];
+  /**
+   * Styles actually painted with so far this scene. Only these get a styled
+   * texture loaded + an overlay mesh, so GPU memory scales with what the viewer
+   * used rather than with the size of the catalogue.
+   */
+  usedStyles: string[];
+  /**
+   * True once any style has been picked for the current scene. Keeps the paint
+   * layer mounted afterwards so already-painted strokes persist even when the
+   * active style is switched back to "Original" (the eraser).
+   */
+  styleEngaged: boolean;
   debug: DebugSnapshot;
 
   setQuality: (q: QualityLevel) => void;
@@ -30,6 +44,10 @@ export interface RuntimeState {
   setMuted: (v: boolean) => void;
   setSpiderPalette: (i: number) => void;
   setActiveStyle: (id: string | null) => void;
+  /** Set the ordered style ids available for the current scene. */
+  setStyleList: (ids: string[]) => void;
+  /** Reset all styling state (call when loading a different scene/picture). */
+  resetStyles: () => void;
   /** Merge a partial debug snapshot (called at low frequency, not every frame). */
   updateDebug: (patch: Partial<DebugSnapshot>) => void;
 }
@@ -41,6 +59,9 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
   muted: true,
   spiderPalette: -1,
   activeStyle: null,
+  styleList: [],
+  usedStyles: [],
+  styleEngaged: false,
   debug: {
     fps: 0,
     pointerImageSpace: { x: 0.5, y: 0.5 },
@@ -55,6 +76,17 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
   setPaused: (paused) => set({ paused }),
   setMuted: (muted) => set({ muted }),
   setSpiderPalette: (spiderPalette) => set({ spiderPalette }),
-  setActiveStyle: (activeStyle) => set({ activeStyle }),
+  setActiveStyle: (activeStyle) =>
+    set((s) => ({
+      activeStyle,
+      styleEngaged: s.styleEngaged || activeStyle !== null,
+      usedStyles:
+        activeStyle && !s.usedStyles.includes(activeStyle)
+          ? [...s.usedStyles, activeStyle]
+          : s.usedStyles,
+    })),
+  setStyleList: (styleList) => set({ styleList }),
+  resetStyles: () =>
+    set({ activeStyle: null, styleList: [], usedStyles: [], styleEngaged: false }),
   updateDebug: (patch) => set((s) => ({ debug: { ...s.debug, ...patch } })),
 }));

@@ -1,9 +1,19 @@
-"""Universal CPU layer separation for an uploaded/chosen photo (no AI, no keys).
+"""Universal CPU layer separation for an uploaded/chosen photo (local, no keys).
 
-Depth-from-vertical-position heuristic: split into near / mid / plate bands with a
-reconstructed (inpainted) background so parallax never reveals a ghost of the
-extracted foreground. Not object-accurate — that is the AI pipeline — but works on
-any photo and yields an interactive 2.5D scene the presets/styles can drive.
+Plans a stack of depth strata per photo (see :mod:`app.layering` for the pieces):
+
+1. the salient subject (U^2-Net) becomes its own front layer, cut as a whole
+   object with a solid interior;
+2. real monocular depth (Depth-Anything V2) splits what remains into `near` and
+   `mid` strata, so a penguin scene yields penguin / rock+snow / mountain / sky;
+3. the opaque background plate is the original photo with every moving layer
+   erased, so nothing can leave a ghost of itself behind when it parallaxes;
+4. each stratum is then completed *underneath* the layers in front of it, so a
+   nearer layer sliding aside uncovers that stratum's own material.
+
+Bands too small to earn a layer are left to the plate, and a photo with no clear
+subject simply gets the depth strata. Cutouts always keep ORIGINAL photographic
+pixels; only genuinely hidden regions are generated.
 
 Writes a scene package to <out_dir> and returns the scene dict.
 """
@@ -15,29 +25,36 @@ import json
 import os
 from typing import Any
 
-import cv2
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image
+
+from app.config import get_settings
+from app.layering import (
+    DepthEstimator,
+    SubjectSegmenter,
+    clean_mask,
+    complete_behind,
+    estimate_depth,
+    feather,
+    fill_holes,
+    reconstruct_plate,
+    save_rgba,
+)
 
 MAX_SIDE = 1600
+#: Margin (share of the long edge) added when completing a layer under its
+#: occluders — just enough to swallow the occluder's anti-aliased fringe. It must
+#: stay small: anything wider overwrites pixels that are visible at rest.
+OCCLUDER_MARGIN_FRACTION = 0.002
+#: Mean saliency required inside a subject mask before it is trusted as an object.
+SUBJECT_MIN_CONFIDENCE = 0.8
+#: A salient mask outside this coverage range is treated as "no clear subject".
+SUBJECT_MIN_COVERAGE = 0.02
+SUBJECT_MAX_COVERAGE = 0.85
 
 
 def image_hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:16]
-
-
-def _feather(mask01: np.ndarray, radius: float) -> np.ndarray:
-    a = Image.fromarray((np.clip(mask01, 0, 1) * 255).astype(np.uint8), "L")
-    return np.asarray(a.filter(ImageFilter.GaussianBlur(radius))).astype(float) / 255.0
-
-
-def _save_rgba(rgb: np.ndarray, alpha01: np.ndarray, path: str) -> None:
-    h, w = alpha01.shape
-    out = np.zeros((h, w, 4), np.uint8)
-    out[..., :3] = np.clip(rgb, 0, 255).astype(np.uint8)
-    out[..., 3] = (np.clip(alpha01, 0, 1) * 255).astype(np.uint8)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    Image.fromarray(out, "RGBA").save(path)
 
 
 def _layer(
@@ -100,28 +117,97 @@ def separate_image(data: bytes, out_dir: str, scene_id: str, title: str) -> dict
         s = MAX_SIDE / max(img.size)
         img = img.resize((round(img.width * s), round(img.height * s)))
     w, h = img.size
-    rgb = np.asarray(img).astype(float)
-    yy = np.linspace(0, 1, h).reshape(h, 1) * np.ones((1, w))
+    rgb = np.asarray(img).astype(np.float32)
     diag = max(w, h)
 
-    near_core = yy > 0.70
-    mid_core = (yy > 0.42) & (yy < 0.75)
-    near = _feather(near_core.astype(float), diag * 0.006)
-    mid = _feather(mid_core.astype(float), diag * 0.01)
+    settings = get_settings()
+    segmenter = SubjectSegmenter(settings.segmentation_model_path, settings.style_intra_op_threads)
+    estimator = DepthEstimator(settings.depth_model_path, settings.style_intra_op_threads)
 
-    union = ((near_core | mid_core).astype(np.uint8)) * 255
-    k = max(3, int(diag * 0.012)) | 1
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
-    gen_mask = cv2.dilate(union, kernel, iterations=1)
-    bgr = cv2.cvtColor(np.clip(rgb, 0, 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
-    plate = cv2.cvtColor(
-        cv2.inpaint(bgr, gen_mask, max(4, int(diag * 0.01)), cv2.INPAINT_TELEA), cv2.COLOR_BGR2RGB
-    ).astype(float)
+    # 1) The salient subject becomes its own front layer, cut as a whole object.
+    subject_core: np.ndarray | None = None
+    if segmenter.is_available():
+        candidate, confidence = segmenter.detect(rgb, settings.subject_threshold)
+        coverage = float(candidate.mean())
+        # Reject degenerate results: nothing salient, "everything is subject", or a
+        # vague low-confidence blob (a landscape with no real subject).
+        if not SUBJECT_MIN_COVERAGE <= coverage <= SUBJECT_MAX_COVERAGE:
+            print(f"  {scene_id}: no subject (coverage {coverage:.1%})")
+        elif confidence < SUBJECT_MIN_CONFIDENCE:
+            print(f"  {scene_id}: subject too vague (confidence {confidence:.2f}), depth only")
+        else:
+            subject_core = candidate
 
-    _save_rgba(plate, np.ones((h, w)), os.path.join(out_dir, "layers", "plate.png"))
-    _save_rgba(rgb, mid, os.path.join(out_dir, "layers", "mid.png"))
-    _save_rgba(rgb, near, os.path.join(out_dir, "layers", "near.png"))
+    # 2) Monocular depth (1 = nearest). EVERY layer is placed by its true depth,
+    #    so a salient-but-distant subject sits at its real distance instead of
+    #    being forced to the front. (A castle behind foreground trees is the
+    #    salient object, yet it must render *behind* — and parallax *less than* —
+    #    the trees, or it appears to float above them.)
+    depth = estimator.depth(rgb) if estimator.is_available() else estimate_depth(rgb)
+
+    # Front-to-back plan entries: (id, role, mask, nearness in 0..1).
+    entries: list[tuple[str, str, np.ndarray, float]] = []
+    claimed = np.zeros(rgb.shape[:2], bool)
+
+    subject_near = 0.5
+    if subject_core is not None:
+        subject_near = float(np.median(depth[subject_core]))
+        entries.append(("subject", "primary-subject", subject_core, subject_near))
+        claimed |= subject_core
+
+    # Foreground: whatever is clearly NEARER than the subject, so it occludes it.
+    # Keyed off the subject's own depth — this is what puts the trees in front of
+    # a distant castle rather than slicing a fixed band off the bottom.
+    if subject_core is not None:
+        fg_cut = min(0.92, subject_near + 0.10)
+    else:
+        fg_cut = float(np.percentile(depth, 80))
+    near_core = fill_holes(clean_mask((depth > fg_cut) & ~claimed, diag, min_area_frac=0.003))
+    if float(near_core.mean()) >= settings.min_layer_coverage:
+        entries.append(("near", "foreground", near_core, float(np.median(depth[near_core]))))
+        claimed |= near_core
+
+    # Midground: a stratum behind the subject but in front of the far plate.
+    if subject_core is not None:
+        mid_mask = (depth > max(0.08, subject_near - 0.16)) & (depth < subject_near)
+    else:
+        mid_mask = (depth > float(np.percentile(depth, 45))) & (depth <= fg_cut)
+    mid_core = fill_holes(clean_mask(mid_mask & ~claimed, diag, min_area_frac=0.004))
+    if float(mid_core.mean()) >= settings.min_layer_coverage:
+        entries.append(("mid", "midground", mid_core, float(np.median(depth[mid_core]))))
+        claimed |= mid_core
+
+    # 3) The plate is the original photo with every moving layer erased, so no
+    #    layer can leave a ghost of itself behind when it parallaxes.
+    plate, generated = reconstruct_plate(rgb, claimed, int(diag * 0.006))
+    save_rgba(plate, np.ones((h, w), np.float32), os.path.join(out_dir, "layers", "plate.png"))
+
+    # 4) Complete each layer behind the ones IN FRONT of it (process nearest
+    #    first so occluders accumulate), then write it. Scene depth = 1 - nearness
+    #    (larger = farther); parallax/offset scale with nearness, so nearer layers
+    #    both render on top and move more.
+    margin_px = int(diag * OCCLUDER_MARGIN_FRACTION)
+    layer_specs: list[dict[str, Any]] = [_layer("plate", "background", 0.94, 0.04, 0.012)]
+    occluders = np.zeros(rgb.shape[:2], bool)
+    for layer_id, role, mask, nearness in sorted(entries, key=lambda e: e[3], reverse=True):
+        layer_rgb, layer_mask = complete_behind(rgb, mask, occluders, margin_px)
+        # Cutouts keep ORIGINAL pixels, solid inside, with a thin edge feather.
+        alpha = feather(layer_mask.astype(np.float32), diag * 0.0025)
+        save_rgba(layer_rgb, alpha, os.path.join(out_dir, "layers", f"{layer_id}.png"))
+        parallax = 0.05 + 0.42 * nearness
+        max_off = 0.012 + 0.05 * nearness
+        layer_specs.append(_layer(layer_id, role, round(1.0 - nearness, 3), parallax, max_off))
+        occluders |= mask
+
+    plan = entries  # for the summary line below
+
+    strata = ", ".join(f"{p[0]} {float(p[2].mean()):.0%}" for p in plan) or "none"
+    print(f"  separated {scene_id}: {strata}; plate generated {generated:.1%}")
+
     Image.fromarray(plate.astype(np.uint8), "RGB").save(os.path.join(out_dir, "background.png"))
+    # The true, untouched photo — what whole-image style transfer reads from.
+    os.makedirs(os.path.join(out_dir, "original"), exist_ok=True)
+    img.save(os.path.join(out_dir, "original", "normalized.png"))
     img.resize((max(1, w // 4), max(1, h // 4))).save(os.path.join(out_dir, "preview.png"))
 
     scene = {
@@ -131,15 +217,11 @@ def separate_image(data: bytes, out_dir: str, scene_id: str, title: str) -> dict
         "width": w,
         "height": h,
         "aspectRatio": round(w / h, 4),
-        "originalImageUrl": "background.png",
+        "originalImageUrl": "original/normalized.png",
         "backgroundPlateUrl": "background.png",
         "preset": "soft-nature",
         "visualAnalysis": {"sceneType": "photo", "mainSubject": title},
-        "layers": [
-            _layer("plate", "background", 0.9, 0.05, 0.02),
-            _layer("mid", "midground", 0.5, 0.18, 0.035),
-            _layer("near", "foreground", 0.14, 0.4, 0.05),
-        ],
+        "layers": layer_specs,
         "atmosphere": {"vignette": 0.05},
         "camera": {"fov": 45, "parallaxStrength": 0.16, "driftStrength": 0.02},
         "audioBindings": [
@@ -153,7 +235,10 @@ def separate_image(data: bytes, out_dir: str, scene_id: str, title: str) -> dict
                 "curve": "easeOut",
             },
         ],
-        "metadata": {"createdAt": "2026-07-23T00:00:00Z", "pipelineVersion": "0.1.0-upload-cpu"},
+        "metadata": {
+            "createdAt": "2026-07-23T00:00:00Z",
+            "pipelineVersion": "0.3.0-cpu-depth-guided+band-inpaint",
+        },
     }
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "scene.json"), "w") as f:

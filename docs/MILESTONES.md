@@ -16,7 +16,36 @@
 > gained a **dwell-halo** (warm light builds where the cursor rests, fades when it
 > leaves); Dark kept. See `packages/effects/{fog,spiderverse,halo}`.
 | 6 | Manual scene editor | ⏳ |
-| 7 | Hosted automatic parsing & completion (real providers) | ⏳ in progress — per-layer **style transfer** landed (mock + OpenAI/fal adapters, `python -m app.stylize`); scene analysis / segmentation / matting / depth / inpainting still mock |
+| 7 | Hosted automatic parsing & completion (real providers) | ⏳ in progress — **all local, no keys**: 14 paintbrush art styles (ONNX + Torch7 + AnimeGANv3 + algorithmic), **U²-Net** subject segmentation and **Depth-Anything V2** depth strata. OpenAI/fal adapters remain as the hosted fallback |
+
+> **Local model pipeline (2026-07-24).** Everything below runs on pretrained
+> weights on CPU with no API keys. Weights are git-ignored; fetch them with
+> `scripts/prep-style-models.py` and `scripts/prep-segmentation-model.py`.
+>
+> | Job | Model | Notes |
+> |---|---|---|
+> | Subject cutout | U²-Net (`rembg`) | whole-object masks; a confidence gate rejects vague blobs on subject-less landscapes |
+> | Depth strata | Depth-Anything V2 ViT-S | splits the rest into `near`/`mid`; bright = near |
+> | Painterly styles | fast-neural-style (ONNX ×5) | zoo ships exactly five; H/W dims made dynamic for full-res output |
+> | Van Gogh | Torch7 `starry_night` via `cv2.dnn` | **requires OpenCV 4.x** — OpenCV 5 dropped the Torch importer |
+> | Miyazaki | AnimeGANv3 `Hayao` | Ghibli-style backgrounds |
+> | Graphic styles | algorithmic (`models/style_filters.py`) | watercolour, ink, comic, pixel, low-poly, cyberpunk, vaporwave |
+>
+> Bump `_PIPELINE_REVISION` in `app/stylize.py` when a style's algorithm changes —
+> the style cache keys on the photo + id + provider + model, none of which move
+> when a filter's internals are rewritten.
+
+> **Layering rework (user direction, 2026-07-24):** inspecting the separated
+> layers showed the background plate was a blurry Telea smear — the old pipeline
+> erased and inpainted **41% of the frame** from speckly, per-pixel threshold
+> masks, and that soft plate showed through the gaps. Now:
+> `app/layering.py` builds **coherent** masks (depth proxy → guided-filter
+> edge-snap → morphological cleanup → drop small components) and the plate keeps
+> the **original photographic pixels** everywhere except the thin band parallax
+> can actually expose (a cutout only shifts by its own `maxOffset`). Generated
+> pixels fell **41% → ~14%**, and at rest the composite is the original photo.
+> `gen-gallery.py` now delegates to `app.separate.separate_image`, so gallery,
+> uploads and `/scenes/process` share one implementation.
 | 8 | Publishing | ⏳ |
 
 ## Milestone 0 — Definition of Done

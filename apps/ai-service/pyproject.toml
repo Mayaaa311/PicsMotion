@@ -17,6 +17,11 @@ dependencies = [
     "pillow>=10.4",
     "numpy>=2.0",
     "python-dotenv>=1.0",
+    "onnxruntime>=1.19",
+    # Pinned to 4.x: OpenCV 5 dropped the Torch7 importer that reads the
+    # pretrained .t7 style nets (Van Gogh / Starry Night). Every other OpenCV API
+    # this service uses is identical across 4 and 5.
+    "opencv-python-headless>=4.10,<5",
 ]
 
 [project.optional-dependencies]
@@ -64,3 +69,7 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["onnxruntime", "onnxruntime.*"]
+ignore_missing_imports = true
