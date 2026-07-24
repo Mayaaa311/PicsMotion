@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "outDir": "dist",
+    "types": [
+      "vitest/globals"
+    ],
+    "paths": {
+      "@interactive-photo/scene-schema": [
+        "../scene-schema/src/index.ts"
+      ],
+      "@interactive-photo/presets": [
+        "../presets/src/index.ts"
+      ],
+      "@interactive-photo/shared": [
+        "../shared/src/index.ts"
+      ],
+      "@interactive-photo/effects": [
+        "../effects/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ]
+}

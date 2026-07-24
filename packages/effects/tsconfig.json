@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "outDir": "dist",
+    "types": ["vitest/globals"],
+    "paths": {
+      "@interactive-photo/scene-schema": ["../scene-schema/src/index.ts"],
+      "@interactive-photo/shared": ["../shared/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

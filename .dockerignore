@@ -1,0 +1,15 @@
+**/node_modules
+**/.next
+**/dist
+**/build
+**/coverage
+**/.venv
+**/__pycache__
+.git
+.vendor
+.claude
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+playwright-report
+test-results

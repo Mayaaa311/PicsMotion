@@ -1,0 +1,55 @@
+{
+  "tracks": [
+    {
+      "file": "a-lovely-night.mp3",
+      "title": "A Lovely Night",
+      "src": "A Lovely Night.mp3"
+    },
+    {
+      "file": "love-me-harder.mp3",
+      "title": "Ariana Grande, The Weeknd - Love Me Harder",
+      "src": "Ariana Grande, The Weeknd - Love Me Harder.mp3"
+    },
+    {
+      "file": "american-boy.mp3",
+      "title": "Estelle - American Boy [Feat. Kanye West] [Video]",
+      "src": "Estelle - American Boy [Feat. Kanye West] [Video].mp3"
+    },
+    {
+      "file": "vampire.mp3",
+      "title": "Olivia Rodrigo - vampire",
+      "src": "Olivia Rodrigo - vampire.mp3"
+    },
+    {
+      "file": "tough.mp3",
+      "title": "Quavo, Lana Del Rey - Tough (Official Video)",
+      "src": "Quavo, Lana Del Rey - Tough (Official Video).mp3"
+    },
+    {
+      "file": "don-t-stop-me-now.mp3",
+      "title": "Queen - Don't Stop Me Now (Official Video)",
+      "src": "Queen - Don't Stop Me Now (Official Video).mp3"
+    },
+    {
+      "file": "radio.mp3",
+      "title": "Radio",
+      "src": "Radio.mp3"
+    },
+    {
+      "file": "lover.mp3",
+      "title": "Taylor Swift - Lover (Official Music Video)",
+      "src": "Taylor Swift - Lover (Official Music Video).mp3"
+    },
+    {
+      "file": "cowboy-like-me.mp3",
+      "title": "Taylor Swift - cowboy like me (Official Lyric Video)",
+      "src": "Taylor Swift - cowboy like me (Official Lyric Video).mp3"
+    },
+    {
+      "file": "the-chain.mp3",
+      "title": "The Chain (2004 Remaster)",
+      "src": "The Chain (2004 Remaster).mp3"
+    }
+  ],
+  "note": "Local demo audio (copyrighted; git-ignored). Replace with licensed/royalty-free tracks before public release."
+}

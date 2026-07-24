@@ -1,0 +1,70 @@
+# ---- Secrets (never commit) ----
+.env
+.env.local
+.env.*.local
+*.pem
+credentials.json
+secrets/
+provider-debug/
+
+# ---- Per-machine Claude configuration ----
+.claude/settings.local.json
+.claude/agent-memory-local/
+
+# ---- Temporary skill inspection sources ----
+.vendor/agent-skills/
+
+# ---- Local screenshots and audit artifacts ----
+.claude/audit-artifacts/
+
+# ---- Node / JS ----
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.turbo/
+playwright-report/
+test-results/
+.vitest/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+*.log
+
+# ---- Local dev data ----
+.data/
+tmp/
+*.zip
+
+# ---- Local, unlicensed test audio (do NOT commit copyrighted tracks) ----
+music/
+*.mp3
+*.wav
+*.flac
+*.m4a
+
+# ---- Generated AI style variants (regenerate via `python -m app.stylize`) ----
+apps/web/public/scenes/*/styles/
+apps/web/public/scenes/gallery/
+apps/web/public/scenes/uploads/
+
+# ---- Downloaded ONNX style models (fetch via scripts) ----
+apps/web/public/models/
+
+# Local Claude agent memory (not product code)
+.claude/agent-memory/

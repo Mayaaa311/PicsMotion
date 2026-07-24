@@ -1,0 +1,1 @@
+"""Alpha matting pipeline stage."""
