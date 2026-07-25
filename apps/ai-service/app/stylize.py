@@ -36,6 +36,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from PIL import Image
+
 from app.config import Settings, get_settings
 from models.style_providers import StyleProvider, get_style_provider
 from models.styles import STYLE_CATALOG, StyleSpec
@@ -45,6 +47,33 @@ _CACHE_SUFFIX = ".sha"
 #: style id, provider and model name — none of which move when a filter's internals
 #: are rewritten, so without this a reworked style would silently stay stale.
 _PIPELINE_REVISION = "7"
+
+#: The web runtime loads WebP styles (see packages/scene-runtime LayerPlane and
+#: scripts/optimize-styles.py): ~10x smaller than the source PNG with no visible
+#: loss for a brush reveal. pixel-art stays lossless so its indexed pixels survive.
+_WEBP_LOSSLESS = frozenset({"pixel-art"})
+_WEBP_QUALITY = 82
+
+
+def write_webp_styles(scene_dir: Path) -> None:
+    """Write a ``.webp`` beside every ``styles/<id>.png`` the runtime will load.
+
+    Idempotent: a style is skipped when its ``.webp`` is newer than its ``.png``.
+    Called at the end of :func:`stylize_scene` so uploads, gallery builds and the
+    CLI all produce the WebP the runtime expects — no separate step required.
+    """
+    styles_dir = scene_dir / "styles"
+    if not styles_dir.is_dir():
+        return
+    for png in sorted(styles_dir.glob("*.png")):
+        webp = png.with_suffix(".webp")
+        if webp.is_file() and webp.stat().st_mtime >= png.stat().st_mtime:
+            continue
+        image = Image.open(png)
+        if png.stem in _WEBP_LOSSLESS:
+            image.save(webp, format="WEBP", lossless=True, method=6)
+        else:
+            image.save(webp, format="WEBP", quality=_WEBP_QUALITY, method=6)
 
 
 def _style_model_label(provider: StyleProvider, style: StyleSpec) -> str:
@@ -164,6 +193,8 @@ async def stylize_scene(
     manifest_path = styles_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"[manifest] {manifest_path}")
+    # Produce the WebP the web runtime actually loads (idempotent).
+    write_webp_styles(scene_dir)
     if failed:
         ids = ", ".join(style_id for style_id, _ in failed)
         print(f"[warn] {len(failed)}/{len(styles)} style(s) failed and were skipped: {ids}")

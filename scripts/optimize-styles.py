@@ -23,15 +23,12 @@ import json
 import sys
 from pathlib import Path
 
-from PIL import Image
-
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "apps" / "ai-service"))
 SCENES = ROOT / "apps" / "web" / "public" / "scenes"
 GALLERY = SCENES / "gallery"
 
-#: Styles kept lossless so their defining detail survives compression.
-_LOSSLESS = {"pixel-art"}
-_LOSSY_QUALITY = 82
+from app.stylize import write_webp_styles  # noqa: E402  (after sys.path setup)
 
 
 def _default_scene_dirs() -> list[Path]:
@@ -47,32 +44,14 @@ def _default_scene_dirs() -> list[Path]:
     return dirs
 
 
-def _convert(png: Path) -> tuple[int, int]:
-    """Write ``<name>.webp`` beside ``png``. Returns (png_bytes, webp_bytes)."""
-    webp = png.with_suffix(".webp")
-    png_size = png.stat().st_size
-    if webp.is_file() and webp.stat().st_mtime >= png.stat().st_mtime:
-        return png_size, webp.stat().st_size
-    image = Image.open(png)
-    if png.stem in _LOSSLESS:
-        image.save(webp, format="WEBP", lossless=True, method=6)
-    else:
-        image.save(webp, format="WEBP", quality=_LOSSY_QUALITY, method=6)
-    return png_size, webp.stat().st_size
-
-
 def optimize_scene(scene_dir: Path) -> tuple[int, int]:
+    """Convert a scene's styles to WebP (shared logic) and report the sizes."""
+    write_webp_styles(scene_dir)
     styles = scene_dir / "styles"
-    total_png = total_webp = 0
-    for png in sorted(styles.glob("*.png")):
-        png_bytes, webp_bytes = _convert(png)
-        total_png += png_bytes
-        total_webp += webp_bytes
+    total_png = sum(p.stat().st_size for p in styles.glob("*.png"))
+    total_webp = sum(p.stat().st_size for p in styles.glob("*.webp"))
     mb = 1024 * 1024
-    print(
-        f"  {scene_dir.name}: {total_png / mb:6.1f} MB PNG -> "
-        f"{total_webp / mb:5.1f} MB WebP"
-    )
+    print(f"  {scene_dir.name}: {total_png / mb:6.1f} MB PNG -> {total_webp / mb:5.1f} MB WebP")
     return total_png, total_webp
 
 

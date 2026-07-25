@@ -146,7 +146,7 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
         return;
       }
       setUploadState('processing');
-      setUploadMsg('Separating layers…');
+      setUploadMsg('Separating depth layers & painting AI styles — this takes a few minutes…');
       try {
         const body = new FormData();
         body.append('file', file);
