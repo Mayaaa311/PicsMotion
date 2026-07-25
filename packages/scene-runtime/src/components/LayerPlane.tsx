@@ -237,10 +237,13 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl, plain = false }:
         <planeGeometry args={[size.width, size.height]} />
       </mesh>
 
-      {/* AI art-style reveal: each cursor stroke shows the style it was painted
-          with (per-pixel style id from the paint field), masked by this layer's
-          alpha. The base photo below stays pixel-sharp; style is "brushed in".
-          Kept in the same group so it inherits depth + parallax. */}
+      {/* AI art-style reveal, one plane per painted style. Each is masked by this
+          layer's own alpha × the cursor paint mask, and lives INSIDE the layer's
+          group — so a painted style parallaxes with the scene exactly like the
+          photo beneath it. The styled frame is a whole-frame reinterpretation
+          (GPT gpt-image-1 or a local engine) that holds the photo's composition
+          closely enough to register under the reveal. Served as WebP (see
+          scripts/optimize-styles.py) to keep the deploy lean. */}
       {styleEngaged &&
         usedStyles.map((styleId) => {
           const styleIndex = styleList.indexOf(styleId);
@@ -248,7 +251,7 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl, plain = false }:
           return (
             <Suspense key={styleId} fallback={null}>
               <StyledOverlay
-                styledUrl={`${assetBaseUrl}styles/${styleId}.png`}
+                styledUrl={`${assetBaseUrl}styles/${styleId}.webp`}
                 styleIndex={styleIndex}
                 baseTexture={texture}
                 size={size}
@@ -264,7 +267,7 @@ export function LayerPlane({ layer, stage, index, assetBaseUrl, plain = false }:
 }
 
 interface StyledOverlayProps {
-  /** Whole-frame styled photo for THIS style. */
+  /** Whole-frame styled photo for THIS style (pixel-aligned to the photo). */
   styledUrl: string;
   /** This style's index in the paint field's style-id channel. */
   styleIndex: number;
@@ -283,11 +286,16 @@ const STYLE_REVEAL_VERT = /* glsl */ `
   }
 `;
 
-// Show THIS style only where the paint field says this style owns the pixel.
-// The paint field's R channel is strength, G is the style index — so one mesh
-// per style keeps the shader trivial and imposes no limit on how many styles
-// exist (no texture-unit ceiling). Styled PNGs are sRGB-encoded; convert to
-// linear so the renderer's sRGB output re-encodes to the right colour.
+// Reveal THIS style only where the paint field says this style owns the pixel,
+// masked by the layer's alpha so the styled cutout matches the layer's shape and
+// rides its parallax.
+//
+// Colour: the styled PNG is sRGB and is sampled with colorSpace = NoColorSpace,
+// so texture2D returns the raw sRGB bytes. A ShaderMaterial's output is NOT
+// re-encoded by three, and the drawing buffer is sRGB, so we must write those
+// sRGB values straight through. (Converting to linear here — as an earlier
+// version did — wrote un-encoded linear values to an sRGB buffer, crushing
+// midtones to a dark, muddy brown the more you painted.)
 const STYLE_REVEAL_FRAG = /* glsl */ `
   uniform sampler2D uStyled;
   uniform sampler2D uBase;
@@ -295,25 +303,20 @@ const STYLE_REVEAL_FRAG = /* glsl */ `
   uniform float uOpacity;
   uniform float uStyleIndex;
   varying vec2 vUv;
-  vec3 srgbToLinear(vec3 c) {
-    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
-  }
   void main() {
     vec2 pv = texture2D(uPaint, vUv).rg;
     if (abs(floor(pv.g + 0.5) - uStyleIndex) > 0.5) discard; // another style owns it
-    float strength = clamp(pv.r, 0.0, 1.0);
     float baseA = texture2D(uBase, vUv).a;
-    float a = baseA * strength * uOpacity;
+    float a = baseA * clamp(pv.r, 0.0, 1.0) * uOpacity;
     if (a <= 0.003) discard;
-    gl_FragColor = vec4(srgbToLinear(texture2D(uStyled, vUv).rgb), a);
+    gl_FragColor = vec4(texture2D(uStyled, vUv).rgb, a);
   }
 `;
 
 /**
- * Reveals ONE painted art style over one layer. Pixels the cursor last painted
- * in a different style are discarded, so mounting one of these per style shows
- * every stroke in the style it was painted with — and the sharp original stays
- * visible everywhere the cursor hasn't brushed.
+ * One painted art style revealed over one layer. Sits just in front of the base
+ * within the same group, so it inherits the layer's depth + parallax and the
+ * painted style moves with the scene.
  */
 function StyledOverlay({
   styledUrl,
@@ -327,8 +330,7 @@ function StyledOverlay({
   const { paintFieldRef } = useRuntime();
   const styled = useTexture(styledUrl);
   useMemo(() => {
-    // Raw sampler read (we convert sRGB→linear in the shader), high anisotropy.
-    styled.colorSpace = THREE.NoColorSpace;
+    styled.colorSpace = THREE.NoColorSpace; // sRGB→linear happens in-shader
     styled.anisotropy = 8;
     styled.needsUpdate = true;
   }, [styled]);
@@ -339,6 +341,11 @@ function StyledOverlay({
         vertexShader: STYLE_REVEAL_VERT,
         fragmentShader: STYLE_REVEAL_FRAG,
         transparent: true,
+        // depthWrite stays OFF: turning it on to dedup overlapping layers made
+        // the layer boundary a hard binary depth cutoff (a visible seam). The
+        // apparent "darkening" was a colour-management bug (fixed below), not the
+        // overlap — drawing the same style over itself just reaches full opacity,
+        // it doesn't darken — so soft alpha edges are the right call.
         depthWrite: false,
         depthTest: true,
         uniforms: {
@@ -360,7 +367,8 @@ function StyledOverlay({
   });
 
   return (
-    // Small z nudge so it sits just in front of the base at the same depth.
+    // Small z nudge so it sits just in front of the base at the same depth, and
+    // just after this layer's base mesh in draw order.
     <mesh
       renderOrder={renderOrder + 1}
       rotation={[0, 0, rotation]}
@@ -371,3 +379,4 @@ function StyledOverlay({
     </mesh>
   );
 }
+

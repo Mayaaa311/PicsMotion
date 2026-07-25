@@ -99,10 +99,6 @@ test('capture gallery flow', async ({ page }) => {
     await page.waitForTimeout(2500);
     await page.screenshot({ path: `${OUT}/gallery-picked.png` });
   }
-
-  await page.getByRole('button', { name: 'Urban / Spider-Verse' }).click();
-  await page.waitForTimeout(1500);
-  await page.screenshot({ path: `${OUT}/urban-clean.png` });
 });
 
 // Paint four DIFFERENT styles into four bands. Each band must keep its own
@@ -174,6 +170,36 @@ test('capture mixed styles', async ({ page }) => {
 
   await page.waitForTimeout(700);
   await page.screenshot({ path: `${OUT}/style-mixed.png` });
+});
+
+// Paint ONE style over the same tree/cliff overlap many times — the worst case
+// for the old per-layer double-draw (which compounded into darkness).
+test('capture heavy vangogh', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/demo/soft-nature');
+  await expect(page.getByTestId('interactive-scene').locator('canvas')).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.waitForTimeout(1200);
+  const btn = page.getByRole('button', { name: 'Van Gogh', exact: true });
+  if ((await btn.count()) === 0) test.skip(true, 'styles not generated');
+  await btn.click();
+  await page.waitForTimeout(400);
+
+  const box = (await page.getByTestId('interactive-scene').boundingBox())!;
+  const at = (fx: number, fy: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
+  // Six passes back and forth across the cliff+trees band (heavy overlap zone).
+  for (let pass = 0; pass < 6; pass++) {
+    const y = 0.3 + (pass % 2) * 0.06;
+    const s = at(0.35, y);
+    await page.mouse.move(s.x, s.y);
+    for (const fx of [0.5, 0.65, 0.5, 0.4]) {
+      const p = at(fx, y);
+      await page.mouse.move(p.x, p.y, { steps: 6 });
+    }
+  }
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: `${OUT}/heavy-vangogh.png` });
 });
 
 // Paint a big region, then select Original (eraser) and sweep back over part of

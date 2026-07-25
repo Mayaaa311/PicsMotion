@@ -1,0 +1,264 @@
+{
+  "version": "1.0",
+  "id": "5070",
+  "title": "Photo 5070",
+  "width": 1600,
+  "height": 765,
+  "aspectRatio": 2.0915,
+  "originalImageUrl": "original/normalized.png",
+  "backgroundPlateUrl": "background.png",
+  "preset": "soft-nature",
+  "visualAnalysis": {
+    "sceneType": "photo",
+    "mainSubject": "Photo 5070"
+  },
+  "layers": [
+    {
+      "id": "plate",
+      "name": "Plate",
+      "semanticLabel": "background",
+      "role": "background",
+      "assetUrl": "layers/plate.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "depth": 0.94,
+      "depthVariance": 0.1,
+      "baseScale": 1.06,
+      "baseRotation": 0,
+      "baseOpacity": 1,
+      "movement": {
+        "enabled": true,
+        "maxOffsetX": 0.012,
+        "maxOffsetY": 0.0072,
+        "maxOffsetZ": 0,
+        "maxRotation": 0,
+        "parallaxStrength": 0.04,
+        "dragEnabled": false,
+        "returnMode": "spring"
+      },
+      "interactionTags": [],
+      "materialTags": [
+        "photo"
+      ],
+      "audioSensitivity": {
+        "bass": 0.15,
+        "lowMid": 0.1,
+        "highMid": 0.05,
+        "treble": 0.05,
+        "beat": 0.1,
+        "loudness": 0.15
+      },
+      "importance": 0.5,
+      "locked": true,
+      "revealBudget": {
+        "maxOffsetX": 0.022,
+        "maxOffsetY": 0.012,
+        "confidence": 0.6
+      },
+      "provenance": {
+        "visiblePixels": "mixed",
+        "sourceImageHash": "upload",
+        "completionProvider": "opencv-telea-cpu"
+      }
+    },
+    {
+      "id": "near",
+      "name": "Near",
+      "semanticLabel": "foreground",
+      "role": "foreground",
+      "assetUrl": "layers/near.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "depth": 0.247,
+      "depthVariance": 0.1,
+      "baseScale": 1.06,
+      "baseRotation": 0,
+      "baseOpacity": 1,
+      "movement": {
+        "enabled": true,
+        "maxOffsetX": 0.04966480684280396,
+        "maxOffsetY": 0.029798884105682374,
+        "maxOffsetZ": 0,
+        "maxRotation": 0,
+        "parallaxStrength": 0.3663843774795532,
+        "dragEnabled": false,
+        "returnMode": "spring"
+      },
+      "interactionTags": [],
+      "materialTags": [
+        "photo"
+      ],
+      "audioSensitivity": {
+        "bass": 0.15,
+        "lowMid": 0.1,
+        "highMid": 0.05,
+        "treble": 0.05,
+        "beat": 0.1,
+        "loudness": 0.15
+      },
+      "importance": 0.5,
+      "locked": false,
+      "revealBudget": {
+        "maxOffsetX": 0.05966480684280396,
+        "maxOffsetY": 0.04966480684280396,
+        "confidence": 0.6
+      },
+      "provenance": {
+        "visiblePixels": "original",
+        "sourceImageHash": "upload"
+      }
+    },
+    {
+      "id": "subject",
+      "name": "Subject",
+      "semanticLabel": "primary-subject",
+      "role": "primary-subject",
+      "assetUrl": "layers/subject.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "depth": 0.438,
+      "depthVariance": 0.1,
+      "baseScale": 1.06,
+      "baseRotation": 0,
+      "baseOpacity": 1,
+      "movement": {
+        "enabled": true,
+        "maxOffsetX": 0.04010584902763367,
+        "maxOffsetY": 0.0240635094165802,
+        "maxOffsetZ": 0,
+        "maxRotation": 0,
+        "parallaxStrength": 0.2860891318321228,
+        "dragEnabled": false,
+        "returnMode": "spring"
+      },
+      "interactionTags": [],
+      "materialTags": [
+        "photo"
+      ],
+      "audioSensitivity": {
+        "bass": 0.15,
+        "lowMid": 0.1,
+        "highMid": 0.05,
+        "treble": 0.05,
+        "beat": 0.1,
+        "loudness": 0.15
+      },
+      "importance": 0.5,
+      "locked": false,
+      "revealBudget": {
+        "maxOffsetX": 0.050105849027633674,
+        "maxOffsetY": 0.04010584902763367,
+        "confidence": 0.6
+      },
+      "provenance": {
+        "visiblePixels": "original",
+        "sourceImageHash": "upload"
+      }
+    },
+    {
+      "id": "mid",
+      "name": "Mid",
+      "semanticLabel": "midground",
+      "role": "midground",
+      "assetUrl": "layers/mid.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "depth": 0.494,
+      "depthVariance": 0.1,
+      "baseScale": 1.06,
+      "baseRotation": 0,
+      "baseOpacity": 1,
+      "movement": {
+        "enabled": true,
+        "maxOffsetX": 0.03731561255455017,
+        "maxOffsetY": 0.0223893675327301,
+        "maxOffsetZ": 0,
+        "maxRotation": 0,
+        "parallaxStrength": 0.26265114545822144,
+        "dragEnabled": false,
+        "returnMode": "spring"
+      },
+      "interactionTags": [],
+      "materialTags": [
+        "photo"
+      ],
+      "audioSensitivity": {
+        "bass": 0.15,
+        "lowMid": 0.1,
+        "highMid": 0.05,
+        "treble": 0.05,
+        "beat": 0.1,
+        "loudness": 0.15
+      },
+      "importance": 0.5,
+      "locked": false,
+      "revealBudget": {
+        "maxOffsetX": 0.04731561255455017,
+        "maxOffsetY": 0.03731561255455017,
+        "confidence": 0.6
+      },
+      "provenance": {
+        "visiblePixels": "original",
+        "sourceImageHash": "upload"
+      }
+    }
+  ],
+  "atmosphere": {
+    "vignette": 0.05
+  },
+  "camera": {
+    "fov": 45,
+    "parallaxStrength": 0.16,
+    "driftStrength": 0.02
+  },
+  "audioBindings": [
+    {
+      "source": "bass",
+      "target": "camera.zoom",
+      "scale": 0.22,
+      "offset": 0,
+      "smoothing": 0.2,
+      "clamp": [
+        0,
+        0.28
+      ],
+      "curve": "easeOut"
+    }
+  ],
+  "metadata": {
+    "createdAt": "2026-07-23T00:00:00Z",
+    "pipelineVersion": "0.3.0-cpu-depth-guided+band-inpaint"
+  }
+}

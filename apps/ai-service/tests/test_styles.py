@@ -279,7 +279,7 @@ async def test_openai_provider_posts_to_images_edits_and_reapplies_alpha(
     assert isinstance(body, bytes)
     assert b"gpt-image-test-model" in body
     assert style.prompt.encode("utf-8") in body
-    assert b'filename="layer.png"' in body
+    assert b'filename="photo.png"' in body
 
     result = Image.open(io.BytesIO(result_bytes)).convert("RGBA")
     assert result.size == original.size

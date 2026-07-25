@@ -1,0 +1,40 @@
+{
+  "scenes": [
+    {
+      "id": "yosemite-falls",
+      "title": "Yosemite Falls \u2014 Through the Pines",
+      "preview": "gallery/yosemite-falls/preview.png",
+      "aspect": 0.6669
+    },
+    {
+      "id": "1007",
+      "title": "Photo 1007",
+      "preview": "gallery/1007/preview.png",
+      "aspect": 0.6419
+    },
+    {
+      "id": "1009",
+      "title": "Photo 1009",
+      "preview": "gallery/1009/preview.png",
+      "aspect": 0.6825
+    },
+    {
+      "id": "501704627f9394807f3d3c3bdf183b58",
+      "title": "Photo 501704627f9394807f3d3c3bdf183b58",
+      "preview": "gallery/501704627f9394807f3d3c3bdf183b58/preview.png",
+      "aspect": 0.7312
+    },
+    {
+      "id": "5070",
+      "title": "Photo 5070",
+      "preview": "gallery/5070/preview.png",
+      "aspect": 2.0915
+    },
+    {
+      "id": "5515f98a83879ee7781f2e9aa24150d9",
+      "title": "Photo 5515f98a83879ee7781f2e9aa24150d9",
+      "preview": "gallery/5515f98a83879ee7781f2e9aa24150d9/preview.png",
+      "aspect": 0.6813
+    }
+  ]
+}

@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # ---- OpenAI ----
     openai_api_key: str | None = None
     openai_scene_model: str = "gpt-5.6-terra"
-    openai_image_model: str = "gpt-image-2"
+    openai_image_model: str = "gpt-image-1"
 
     # ---- fal ----
     fal_key: str | None = None

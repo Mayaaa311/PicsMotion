@@ -44,9 +44,6 @@ def _yield_to_desktop() -> None:
 
 def _default_scene_dirs() -> list[Path]:
     dirs: list[Path] = []
-    yosemite = SCENES / "yosemite-falls"
-    if (yosemite / "scene.json").is_file():
-        dirs.append(yosemite)
     gallery_index = SCENES / "gallery" / "index.json"
     if gallery_index.is_file():
         index = json.loads(gallery_index.read_text(encoding="utf-8"))

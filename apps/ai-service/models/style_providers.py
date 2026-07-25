@@ -32,6 +32,19 @@ _HTTP_TIMEOUT_SECONDS = 120.0
 _FAL_POLL_INTERVAL_SECONDS = 2.0
 _FAL_MAX_POLL_ATTEMPTS = 60
 
+# gpt-image-1's safety filter is probabilistic: the same prompt+image can return
+# 400 on one call and 200 on the next. Retry those (and 429/5xx) with a linear
+# backoff so a single flaky rejection doesn't fail an otherwise-good style.
+_OPENAI_MAX_ATTEMPTS = 4
+_OPENAI_RETRY_BACKOFF_SECONDS = 3.0
+_OPENAI_RETRIABLE_STATUS = frozenset({400, 408, 409, 429})
+
+# Brushwork emphasis for colour-preserving styles (Van Gogh). Tuned to make the
+# strokes read boldly while keeping the photo's own colours; adjust to taste.
+_BRUSH_CONTRAST = 1.18
+_BRUSH_SHARPEN = 0.6
+_BRUSH_SHARPEN_SIGMA = 0.0018  # as a fraction of the long edge
+
 
 @runtime_checkable
 class StyleProvider(Protocol):
@@ -92,9 +105,19 @@ def keep_original_colour(styled_png: bytes, original_png: bytes) -> bytes:
 
     styled_luma = styled_ycc[..., 0]
     original_luma = original_ycc[..., 0]
+    mean_o = float(original_luma.mean())
     matched = (styled_luma - styled_luma.mean()) * (
         float(original_luma.std()) / (float(styled_luma.std()) + 1e-6)
-    ) + original_luma.mean()
+    ) + mean_o
+
+    # Make the brushwork read boldly. The strokes live entirely in this luma
+    # channel (chroma stays the photo's), so pop them WITHOUT touching colour:
+    #   * expand contrast around the mid so light/dark strokes separate, then
+    #   * unsharp-mask to accentuate the impasto ridges the net painted.
+    matched = mean_o + (matched - mean_o) * _BRUSH_CONTRAST
+    sigma = max(1.0, max(styled.size) * _BRUSH_SHARPEN_SIGMA)
+    blurred = cv2.GaussianBlur(matched, (0, 0), sigma)
+    matched = matched + _BRUSH_SHARPEN * (matched - blurred)
 
     merged = original_ycc.copy()  # keeps Cr/Cb — the photo's colour
     merged[..., 0] = np.clip(matched, 0, 255)
@@ -390,18 +413,31 @@ class LocalStyleProvider:
                 settings.anime_models_dir, settings.style_max_size, settings.style_intra_op_threads
             ),
         }
+        # Hosted GPT engine for styles flagged `hosted`, only in live mode with a
+        # key. Mock mode never touches the paid API even if a key is present.
+        self._openai: OpenAIImageStyleProvider | None = None
+        if settings.openai_api_key and not settings.is_mock_mode:
+            self._openai = OpenAIImageStyleProvider(settings)
+
+    def _uses_gpt(self, style: StyleSpec) -> bool:
+        return style.hosted and self._openai is not None
 
     def is_available(self, style: StyleSpec) -> bool:
+        if self._uses_gpt(style):
+            return True
         if style.kind == "filter":
             return True  # algorithmic styles need no weights
         engine = self._engines.get(style.kind)
         return bool(engine and engine.is_available(style))
 
     async def stylize(self, png_bytes: bytes, style: StyleSpec) -> bytes:
+        if self._uses_gpt(style):
+            # GPT reinterpretation is its own artwork — do NOT colour-preserve it.
+            return await self._openai.stylize(png_bytes, style)  # type: ignore[union-attr]
         engine = self._engines.get(style.kind, self._filter)
         result: bytes = await engine.stylize(png_bytes, style)
         if style.preserve_color:
-            # Brushwork-only styles: drop the net's palette, keep the photo's.
+            # Local brushwork-only styles: drop the net's palette, keep the photo's.
             result = await asyncio.to_thread(keep_original_colour, result, png_bytes)
         return result
 
@@ -435,29 +471,106 @@ class OpenAIImageStyleProvider:
         self._api_key = settings.openai_api_key
         self._model = settings.openai_image_model
 
+    @staticmethod
+    def _edit_size(width: int, height: int) -> str:
+        """Nearest supported gpt-image size that keeps the photo's orientation.
+
+        Matching orientation keeps the reinterpretation close to the original
+        framing, which is what lets it drop into the aligned per-layer reveal.
+        """
+        if width > height * 1.15:
+            return "1536x1024"
+        if height > width * 1.15:
+            return "1024x1536"
+        return "1024x1024"
+
     async def stylize(self, png_bytes: bytes, style: StyleSpec) -> bytes:
         image = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
         original_alpha = image.split()[3]
 
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_SECONDS) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/images/edits",
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                data={"model": self._model, "prompt": style.prompt, "size": "auto", "n": "1"},
-                files={"image": ("layer.png", png_bytes, "image/png")},
-            )
-        response.raise_for_status()
-        payload: dict[str, Any] = response.json()
-        b64_json: str = payload["data"][0]["b64_json"]
-        result_bytes = base64.b64decode(b64_json)
+        # Ask the model to REPAINT the scene in the style while holding the
+        # composition, so the result still lines up with the photo's layers.
+        prompt = (
+            f"Repaint this exact photograph in the style of {style.prompt}. "
+            "Keep the original composition, camera angle, and the position and "
+            "scale of every element; do not add, remove, or move objects."
+        )
+        result_bytes = await self._request_edit(
+            png_bytes, prompt, self._edit_size(image.width, image.height), style
+        )
 
-        # Re-apply the original alpha so the layer's transparency / cutout
-        # shape survives the round trip through an RGB-only image API.
+        # Resize back to the photo's exact frame so it registers with the layers.
         result = Image.open(io.BytesIO(result_bytes)).convert("RGBA")
         if result.size != image.size:
             result = result.resize(image.size, Image.Resampling.LANCZOS)
         result.putalpha(original_alpha)
         return _to_png_bytes(result)
+
+    async def _request_edit(
+        self, png_bytes: bytes, prompt: str, size: str, style: StyleSpec
+    ) -> bytes:
+        """POST one image-edit request, retrying flaky rejections.
+
+        Returns the decoded PNG bytes of the first successful response. Raises
+        after :data:`_OPENAI_MAX_ATTEMPTS` on retriable failures, or immediately
+        on a non-retriable status (e.g. 401 bad key), with the API's own error
+        message attached for diagnosis.
+        """
+        last_error: Exception | None = None
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_SECONDS) as client:
+            for attempt in range(1, _OPENAI_MAX_ATTEMPTS + 1):
+                try:
+                    response = await client.post(
+                        "https://api.openai.com/v1/images/edits",
+                        headers={"Authorization": f"Bearer {self._api_key}"},
+                        data={"model": self._model, "prompt": prompt, "size": size, "n": "1"},
+                        files={"image": ("photo.png", png_bytes, "image/png")},
+                    )
+                except httpx.TransportError as exc:  # network blip, DNS, timeout
+                    last_error = exc
+                    logger.warning(
+                        "openai image edit transport error for '%s' (attempt %d/%d): %s",
+                        style.id,
+                        attempt,
+                        _OPENAI_MAX_ATTEMPTS,
+                        exc,
+                    )
+                else:
+                    if response.status_code == 200:
+                        payload: dict[str, Any] = response.json()
+                        return base64.b64decode(payload["data"][0]["b64_json"])
+                    detail = _summarize_openai_error(response)
+                    last_error = RuntimeError(f"HTTP {response.status_code}: {detail}")
+                    if response.status_code not in _OPENAI_RETRIABLE_STATUS and (
+                        response.status_code < 500
+                    ):
+                        raise last_error
+                    logger.warning(
+                        "openai image edit HTTP %d for '%s' (attempt %d/%d): %s",
+                        response.status_code,
+                        style.id,
+                        attempt,
+                        _OPENAI_MAX_ATTEMPTS,
+                        detail,
+                    )
+                if attempt < _OPENAI_MAX_ATTEMPTS:
+                    await asyncio.sleep(_OPENAI_RETRY_BACKOFF_SECONDS * attempt)
+        raise RuntimeError(
+            f"OpenAI image edit failed for '{style.id}' after {_OPENAI_MAX_ATTEMPTS} attempts"
+        ) from last_error
+
+
+def _summarize_openai_error(response: httpx.Response) -> str:
+    """Extract a short, safe error message from an OpenAI error response."""
+    try:
+        data = response.json()
+    except ValueError:
+        return response.text[:300]
+    if isinstance(data, dict):
+        error = data.get("error")
+        if isinstance(error, dict):
+            return str(error.get("message") or error.get("code") or error)
+    return str(data)[:300]
 
 
 # ---------------------------------------------------------------------------
@@ -558,23 +671,12 @@ class FalImg2ImgStyleProvider:
 
 
 def get_style_provider(settings: Settings | None = None) -> StyleProvider:
-    """Select a style provider based on ``AI_PROVIDER_MODE`` and credentials.
+    """Return the per-style router.
 
-    The local engine (pretrained ONNX networks + algorithmic filters, no keys) is
-    the default and is used in mock mode. In live mode, OpenAI is preferred when
-    ``OPENAI_API_KEY`` is set, then fal when ``FAL_KEY`` is set; if neither
-    credential is present this falls back to the local engine.
+    :class:`LocalStyleProvider` handles everything: it routes each style flagged
+    ``hosted`` to the OpenAI image model when a key is set and mode is live, and
+    every other style (and all styles when no key is present) to the local
+    engines. This keeps per-style routing + graceful local fallback in one place.
     """
     resolved = settings if settings is not None else get_settings()
-    if resolved.is_mock_mode:
-        return LocalStyleProvider(resolved)
-    if resolved.openai_api_key:
-        return OpenAIImageStyleProvider(resolved)
-    if resolved.fal_key:
-        return FalImg2ImgStyleProvider(resolved)
-    logger.warning(
-        "AI_PROVIDER_MODE=%s but neither OPENAI_API_KEY nor FAL_KEY is set; "
-        "using the local style engine.",
-        resolved.ai_provider_mode,
-    )
     return LocalStyleProvider(resolved)

@@ -1,0 +1,85 @@
+{
+  "generatedAt": "2026-07-25T00:49:53.563612+00:00",
+  "provider": "local",
+  "source": "original/normalized.png",
+  "styles": [
+    {
+      "id": "impressionist",
+      "displayName": "Impressionist",
+      "kind": "onnx",
+      "model": "gpt-image"
+    },
+    {
+      "id": "van-gogh",
+      "displayName": "Van Gogh",
+      "kind": "torch",
+      "model": "gpt-image"
+    },
+    {
+      "id": "miyazaki",
+      "displayName": "Miyazaki",
+      "kind": "anime",
+      "model": "gpt-image"
+    },
+    {
+      "id": "stained-glass",
+      "displayName": "Stained Glass",
+      "kind": "onnx",
+      "model": "gpt-image"
+    },
+    {
+      "id": "pop-art",
+      "displayName": "Pop Art",
+      "kind": "onnx",
+      "model": "gpt-image"
+    },
+    {
+      "id": "cubist",
+      "displayName": "Cubist",
+      "kind": "onnx",
+      "model": "gpt-image"
+    },
+    {
+      "id": "watercolor",
+      "displayName": "Watercolour",
+      "kind": "filter",
+      "model": "gpt-image"
+    },
+    {
+      "id": "ink-sketch",
+      "displayName": "Ink Sketch",
+      "kind": "filter",
+      "model": "gpt-image"
+    },
+    {
+      "id": "comic",
+      "displayName": "Comic",
+      "kind": "filter",
+      "model": "gpt-image"
+    },
+    {
+      "id": "pixel-art",
+      "displayName": "Pixel Art",
+      "kind": "filter",
+      "model": "pixel_art"
+    },
+    {
+      "id": "low-poly",
+      "displayName": "Low Poly",
+      "kind": "filter",
+      "model": "gpt-image"
+    },
+    {
+      "id": "cyberpunk",
+      "displayName": "Cyberpunk",
+      "kind": "filter",
+      "model": "gpt-image"
+    },
+    {
+      "id": "vaporwave",
+      "displayName": "Vaporwave",
+      "kind": "filter",
+      "model": "gpt-image"
+    }
+  ]
+}

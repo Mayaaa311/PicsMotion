@@ -1,0 +1,209 @@
+{
+  "version": "1.0",
+  "id": "501704627f9394807f3d3c3bdf183b58",
+  "title": "Photo 501704627f9394807f3d3c3bdf183b58",
+  "width": 1170,
+  "height": 1600,
+  "aspectRatio": 0.7312,
+  "originalImageUrl": "original/normalized.png",
+  "backgroundPlateUrl": "background.png",
+  "preset": "soft-nature",
+  "visualAnalysis": {
+    "sceneType": "photo",
+    "mainSubject": "Photo 501704627f9394807f3d3c3bdf183b58"
+  },
+  "layers": [
+    {
+      "id": "plate",
+      "name": "Plate",
+      "semanticLabel": "background",
+      "role": "background",
+      "assetUrl": "layers/plate.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "depth": 0.94,
+      "depthVariance": 0.1,
+      "baseScale": 1.06,
+      "baseRotation": 0,
+      "baseOpacity": 1,
+      "movement": {
+        "enabled": true,
+        "maxOffsetX": 0.012,
+        "maxOffsetY": 0.0072,
+        "maxOffsetZ": 0,
+        "maxRotation": 0,
+        "parallaxStrength": 0.04,
+        "dragEnabled": false,
+        "returnMode": "spring"
+      },
+      "interactionTags": [],
+      "materialTags": [
+        "photo"
+      ],
+      "audioSensitivity": {
+        "bass": 0.15,
+        "lowMid": 0.1,
+        "highMid": 0.05,
+        "treble": 0.05,
+        "beat": 0.1,
+        "loudness": 0.15
+      },
+      "importance": 0.5,
+      "locked": true,
+      "revealBudget": {
+        "maxOffsetX": 0.022,
+        "maxOffsetY": 0.012,
+        "confidence": 0.6
+      },
+      "provenance": {
+        "visiblePixels": "mixed",
+        "sourceImageHash": "upload",
+        "completionProvider": "opencv-telea-cpu"
+      }
+    },
+    {
+      "id": "near",
+      "name": "Near",
+      "semanticLabel": "foreground",
+      "role": "foreground",
+      "assetUrl": "layers/near.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "depth": 0.166,
+      "depthVariance": 0.1,
+      "baseScale": 1.06,
+      "baseRotation": 0,
+      "baseOpacity": 1,
+      "movement": {
+        "enabled": true,
+        "maxOffsetX": 0.05367630076408386,
+        "maxOffsetY": 0.032205780458450316,
+        "maxOffsetZ": 0,
+        "maxRotation": 0,
+        "parallaxStrength": 0.4000809264183044,
+        "dragEnabled": false,
+        "returnMode": "spring"
+      },
+      "interactionTags": [],
+      "materialTags": [
+        "photo"
+      ],
+      "audioSensitivity": {
+        "bass": 0.15,
+        "lowMid": 0.1,
+        "highMid": 0.05,
+        "treble": 0.05,
+        "beat": 0.1,
+        "loudness": 0.15
+      },
+      "importance": 0.5,
+      "locked": false,
+      "revealBudget": {
+        "maxOffsetX": 0.06367630076408386,
+        "maxOffsetY": 0.05367630076408386,
+        "confidence": 0.6
+      },
+      "provenance": {
+        "visiblePixels": "original",
+        "sourceImageHash": "upload"
+      }
+    },
+    {
+      "id": "mid",
+      "name": "Mid",
+      "semanticLabel": "midground",
+      "role": "midground",
+      "assetUrl": "layers/mid.png",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "depth": 0.947,
+      "depthVariance": 0.1,
+      "baseScale": 1.06,
+      "baseRotation": 0,
+      "baseOpacity": 1,
+      "movement": {
+        "enabled": true,
+        "maxOffsetX": 0.014654073759913445,
+        "maxOffsetY": 0.008792444255948067,
+        "maxOffsetZ": 0,
+        "maxRotation": 0,
+        "parallaxStrength": 0.07229421958327294,
+        "dragEnabled": false,
+        "returnMode": "spring"
+      },
+      "interactionTags": [],
+      "materialTags": [
+        "photo"
+      ],
+      "audioSensitivity": {
+        "bass": 0.15,
+        "lowMid": 0.1,
+        "highMid": 0.05,
+        "treble": 0.05,
+        "beat": 0.1,
+        "loudness": 0.15
+      },
+      "importance": 0.5,
+      "locked": false,
+      "revealBudget": {
+        "maxOffsetX": 0.024654073759913443,
+        "maxOffsetY": 0.014654073759913445,
+        "confidence": 0.6
+      },
+      "provenance": {
+        "visiblePixels": "original",
+        "sourceImageHash": "upload"
+      }
+    }
+  ],
+  "atmosphere": {
+    "vignette": 0.05
+  },
+  "camera": {
+    "fov": 45,
+    "parallaxStrength": 0.16,
+    "driftStrength": 0.02
+  },
+  "audioBindings": [
+    {
+      "source": "bass",
+      "target": "camera.zoom",
+      "scale": 0.22,
+      "offset": 0,
+      "smoothing": 0.2,
+      "clamp": [
+        0,
+        0.28
+      ],
+      "curve": "easeOut"
+    }
+  ],
+  "metadata": {
+    "createdAt": "2026-07-23T00:00:00Z",
+    "pipelineVersion": "0.3.0-cpu-depth-guided+band-inpaint"
+  }
+}

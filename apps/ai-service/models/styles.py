@@ -41,8 +41,12 @@ class StyleSpec:
     kind: StyleKind
     #: ONNX weights name (kind="onnx") or STYLE_FILTERS key (kind="filter").
     model: str
-    #: Text prompt for the hosted image-edit adapters (OpenAI / fal) fallback.
+    #: Text prompt for the hosted image model (OpenAI). Also used by the local
+    #: fallback adapters. For hosted styles this is the reinterpretation prompt.
     prompt: str
+    #: Prefer the hosted GPT image model when a key is configured; falls back to
+    #: the local ``kind`` engine when no key is present.
+    hosted: bool = False
     #: Keep the PHOTO's own colours and take only the style's brushwork.
     #: Style transfer moves texture *and* palette. For a style wanted purely for
     #: how it paints — Van Gogh's strokes rather than Starry Night's blue/yellow —
@@ -51,6 +55,12 @@ class StyleSpec:
     #: Style Transfer"). Leave False where the palette IS the style (Cyberpunk,
     #: Vaporwave, Pop Art, Stained Glass).
     preserve_color: bool = False
+
+
+# Pixel-art stays on the local algorithmic engine (GPT can't hold a crisp indexed
+# palette); everything else prefers the hosted GPT image model when a key is
+# configured (user direction, 2026-07-24; vaporwave moved to GPT after review).
+_LOCAL_ONLY: frozenset[str] = frozenset({"pixel-art"})
 
 
 def _spec(
@@ -68,6 +78,7 @@ def _spec(
         kind=kind,
         model=model,
         prompt=prompt,
+        hosted=style_id not in _LOCAL_ONLY,
         preserve_color=preserve_color,
     )
 
@@ -98,8 +109,11 @@ STYLE_CATALOG: dict[str, StyleSpec] = {
         "Miyazaki",
         "anime",
         "AnimeGANv3_Hayao_36",
-        "Studio Ghibli background painting, Hayao Miyazaki, lush painted foliage, "
-        "soft luminous skies, hand-painted anime film cel",
+        # Describe the look rather than naming the studio/creator: gpt-image-1's
+        # safety filter rejects requests to imitate a named living artist or brand.
+        "lush hand-painted anime film background, verdant painterly foliage, soft "
+        "luminous watercolour skies with billowing cumulus clouds, warm nostalgic "
+        "light, gentle cel shading",
     ),
     "stained-glass": _spec(
         "stained-glass",
@@ -174,6 +188,9 @@ STYLE_CATALOG: dict[str, StyleSpec] = {
         "Vaporwave",
         "filter",
         "vaporwave",
-        "vaporwave aesthetic, pastel pink and cyan, VHS scanlines, retro 80s digital",
+        "vaporwave aesthetic, dreamy pastel pink, cyan and purple gradient tones, "
+        "glowing neon light, retro 1980s synthwave sunset gradient across the sky, "
+        "chrome and holographic iridescent sheen, VHS scanlines and subtle glitch, "
+        "nostalgic dreamlike Miami-nights digital glow, high saturation",
     ),
 }

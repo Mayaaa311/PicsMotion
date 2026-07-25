@@ -25,7 +25,7 @@ const SHOW_AUDIO_CONTROLS = false;
  */
 const SHOW_PRESETS = false;
 
-const DEFAULT_SCENE_DIR = '/scenes/yosemite-falls';
+const DEFAULT_SCENE_DIR = '/scenes/gallery/yosemite-falls';
 const GALLERY_INDEX = '/scenes/gallery/index.json';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 const PRESET_NAMES = Object.keys(presets) as PresetName[];
@@ -320,13 +320,6 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
                   {gallery.length ? `${gallery.length} photos` : 'Run scripts/gen-gallery.py'}
                 </p>
                 <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => chooseScene(DEFAULT_SCENE_DIR)}
-                    className="col-span-3 rounded bg-white/5 px-2 py-1 text-left text-xs text-slate-200 hover:bg-white/10"
-                  >
-                    ★ Yosemite (layer-separated demo)
-                  </button>
                   {gallery.map((g) => (
                     <button
                       key={g.id}

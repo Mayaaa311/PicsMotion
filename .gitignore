@@ -58,10 +58,32 @@ music/
 *.flac
 *.m4a
 
-# ---- Generated AI style variants (regenerate via `python -m app.stylize`) ----
-apps/web/public/scenes/*/styles/
-apps/web/public/scenes/gallery/
+# ---- Scratch photo downloads (canonical source lives in demo-photos/) ----
+picsmotion-*/
+picsmotion-*.zip
+
+# ---- Uploads: never commit ----
 apps/web/public/scenes/uploads/
+
+# ---- Gallery: ship only the curated demo scenes ----
+# Everything under gallery/ is ignored, then the deployed scenes are re-included.
+# Regenerate any scene with: python scripts/build-scenes.py --scene <id>
+apps/web/public/scenes/gallery/*
+!apps/web/public/scenes/gallery/index.json
+!apps/web/public/scenes/gallery/yosemite-falls/
+!apps/web/public/scenes/gallery/1007/
+!apps/web/public/scenes/gallery/1009/
+!apps/web/public/scenes/gallery/501704627f9394807f3d3c3bdf183b58/
+!apps/web/public/scenes/gallery/5070/
+!apps/web/public/scenes/gallery/5515f98a83879ee7781f2e9aa24150d9/
+
+# ---- Within every scene, drop the heavy files the runtime never serves ----
+# We ship WebP styles (scripts/optimize-styles.py); the multi-MB source PNGs,
+# cache sidecars, and the pipeline-only original/ + background.png stay local.
+apps/web/public/scenes/**/styles/*.png
+apps/web/public/scenes/**/styles/*.sha
+apps/web/public/scenes/gallery/*/original/
+apps/web/public/scenes/gallery/*/background.png
 
 # ---- Downloaded ONNX style models (fetch via scripts) ----
 apps/web/public/models/

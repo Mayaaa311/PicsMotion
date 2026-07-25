@@ -44,11 +44,18 @@ _CACHE_SUFFIX = ".sha"
 #: Bump when a style's *algorithm* changes. The cache key covers the source photo,
 #: style id, provider and model name — none of which move when a filter's internals
 #: are rewritten, so without this a reworked style would silently stay stale.
-_PIPELINE_REVISION = "5"
+_PIPELINE_REVISION = "7"
 
 
 def _style_model_label(provider: StyleProvider, style: StyleSpec) -> str:
-    """Human/cache label for the engine a provider uses for one style."""
+    """Human/cache label for the engine a provider uses for one style.
+
+    Returns ``"gpt-image"`` for styles the router will send to OpenAI, so the
+    cache key changes when a style flips between its local engine and GPT.
+    """
+    uses_gpt = getattr(provider, "_uses_gpt", None)
+    if callable(uses_gpt) and uses_gpt(style):
+        return "gpt-image"
     if getattr(provider, "name", None) in {"local", "onnx", "filter"}:
         return style.model
     return getattr(provider, "name", "unknown")
@@ -106,6 +113,7 @@ async def stylize_scene(
 
     is_available = getattr(resolved_provider, "is_available", None)
     generated: list[StyleSpec] = []
+    failed: list[tuple[str, str]] = []
 
     for style in styles:
         # Skip styles whose (git-ignored) weights are not installed rather than
@@ -113,7 +121,6 @@ async def stylize_scene(
         if is_available is not None and not is_available(style):
             print(f"[skip] {style.id}.png (no weights for '{style.model}')")
             continue
-        generated.append(style)
 
         output_path = styles_dir / f"{style.id}.png"
         sha_path = output_path.with_name(output_path.name + _CACHE_SUFFIX)
@@ -123,12 +130,22 @@ async def stylize_scene(
         if output_path.exists() and sha_path.exists():
             if sha_path.read_text(encoding="utf-8").strip() == digest:
                 print(f"[skip] {style.id}.png (cached, {provider_name}/{model})")
+                generated.append(style)
                 continue
 
-        result_bytes = await resolved_provider.stylize(original_bytes, style)
+        # One flaky style (e.g. a hosted API rejection) must not abort the batch:
+        # log it, skip it, and keep generating the rest. Only styles with a valid
+        # image on disk make it into the manifest.
+        try:
+            result_bytes = await resolved_provider.stylize(original_bytes, style)
+        except Exception as exc:  # noqa: BLE001 — batch job isolates per-style failures
+            print(f"[fail] {style.id}.png ({provider_name}/{model}): {exc}")
+            failed.append((style.id, str(exc)))
+            continue
         output_path.write_bytes(result_bytes)
         sha_path.write_text(digest, encoding="utf-8")
         print(f"[done] {style.id}.png ({provider_name}/{model})")
+        generated.append(style)
 
     manifest = {
         "generatedAt": generated_at or datetime.now(UTC).isoformat(),
@@ -147,6 +164,9 @@ async def stylize_scene(
     manifest_path = styles_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"[manifest] {manifest_path}")
+    if failed:
+        ids = ", ".join(style_id for style_id, _ in failed)
+        print(f"[warn] {len(failed)}/{len(styles)} style(s) failed and were skipped: {ids}")
     return manifest_path
 
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -16,12 +15,32 @@ if str(SERVICE_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVICE_ROOT))
 
 
+#: Credential fields to force-empty so tests never see a real key or hit a paid
+#: API — even when a developer has a live ``apps/ai-service/.env`` on disk.
+_SECRET_FIELDS = (
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "FAL_KEY",
+    "BFL_API_KEY",
+    "S3_ACCESS_KEY",
+    "S3_SECRET_KEY",
+    "BFL_WEBHOOK_SECRET",
+    "FAL_WEBHOOK_SECRET",
+)
+
+
 @pytest.fixture(autouse=True)
 def _mock_mode_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Force mock mode and clear any provider keys from the environment."""
-    for key in list(os.environ):
-        if key.endswith("_API_KEY") or key in {"FAL_KEY", "S3_ACCESS_KEY", "S3_SECRET_KEY"}:
-            monkeypatch.delenv(key, raising=False)
+    """Force mock mode with no provider keys.
+
+    Setting the vars to "" (not deleting them) is deliberate: env vars take
+    precedence over the ``.env`` file in pydantic-settings, so an empty env var
+    overrides a real key that a developer keeps in ``apps/ai-service/.env`` —
+    otherwise the live key would leak into the suite and tests could hit the paid
+    OpenAI API.
+    """
+    for key in _SECRET_FIELDS:
+        monkeypatch.setenv(key, "")
     monkeypatch.setenv("AI_PROVIDER_MODE", "mock")
 
     from app.config import get_settings
