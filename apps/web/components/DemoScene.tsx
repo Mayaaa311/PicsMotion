@@ -4,7 +4,7 @@ import { useAudioEngine } from '@interactive-photo/audio-engine';
 import { presets } from '@interactive-photo/presets';
 import { loadScene, useRuntimeStore } from '@interactive-photo/scene-runtime';
 import type { PresetName, SceneDocument } from '@interactive-photo/scene-schema';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AudioControls } from './AudioControls';
 import { InteractiveSceneDynamic } from './InteractiveSceneDynamic';
@@ -28,6 +28,10 @@ const SHOW_PRESETS = false;
 const DEFAULT_SCENE_DIR = '/scenes/gallery/yosemite-falls';
 const GALLERY_INDEX = '/scenes/gallery/index.json';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
+// Client-side guard between uploads. NOT real protection (trivially bypassed) —
+// the backend should rate-limit for a public deploy; this just curbs accidental
+// repeat clicks of a paid, multi-minute job. See DEPLOYMENT.md.
+const UPLOAD_COOLDOWN_MS = 60_000;
 const PRESET_NAMES = Object.keys(presets) as PresetName[];
 
 interface GalleryItem {
@@ -64,6 +68,7 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
   const [showControls, setShowControls] = useState(true);
   const [uploadState, setUploadState] = useState<'idle' | 'processing' | 'error'>('idle');
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+  const lastUploadAtRef = useRef(0);
 
   const chooseScene = useCallback(
     (dir: string) => {
@@ -135,7 +140,7 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
     };
   }, []);
 
-  // Upload a photo → the AI service separates it into layers → load that scene.
+  // Upload a photo → the AI service separates it into layers + styles → load it.
   const onUpload = useCallback(
     async (fileList: FileList | null) => {
       const file = fileList?.[0];
@@ -145,8 +150,39 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
         setUploadMsg('Please choose an image file.');
         return;
       }
+
+      // On a hosted deploy with no backend configured, the default localhost API
+      // is unreachable — say so plainly instead of "is the AI service running…".
+      const backendIsLocal = /127\.0\.0\.1|localhost/.test(API_BASE);
+      const pageIsHosted =
+        typeof window !== 'undefined' &&
+        !/localhost|127\.0\.0\.1/.test(window.location.hostname);
+      if (backendIsLocal && pageIsHosted) {
+        setUploadState('error');
+        setUploadMsg(
+          'Photo upload isn’t connected on this hosted demo yet — try the gallery below. (Enabling it needs the processing backend; see DEPLOYMENT.md.)',
+        );
+        return;
+      }
+
+      // Client-side rate limit against accidental repeat clicks of a paid job.
+      const waitMs = UPLOAD_COOLDOWN_MS - (Date.now() - lastUploadAtRef.current);
+      if (waitMs > 0) {
+        setUploadState('error');
+        setUploadMsg(`Please wait ${Math.ceil(waitMs / 1000)}s before uploading another photo.`);
+        return;
+      }
+
+      // Confirm before starting a multi-minute AI job that uses paid API calls.
+      const proceed = window.confirm(
+        'Turn this photo into a moving, paintable scene?\n\n' +
+          'It runs AI processing (depth layers + art styles) and takes about 1–2 minutes.',
+      );
+      if (!proceed) return;
+
+      lastUploadAtRef.current = Date.now();
       setUploadState('processing');
-      setUploadMsg('Separating depth layers & painting AI styles — this takes a few minutes…');
+      setUploadMsg('Separating depth layers & painting AI styles — about 1–2 minutes…');
       try {
         const body = new FormData();
         body.append('file', file);
@@ -159,7 +195,7 @@ export function DemoScene({ initialPreset }: DemoSceneProps) {
       } catch (e) {
         setUploadState('error');
         setUploadMsg(
-          `Couldn't process the photo. Is the AI service running on ${API_BASE}? (${e instanceof Error ? e.message : e})`,
+          `Couldn’t process the photo (${e instanceof Error ? e.message : e}). The processing backend may be unavailable.`,
         );
       }
     },
