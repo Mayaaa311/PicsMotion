@@ -56,29 +56,44 @@ which runs the same pipeline on the uploaded image: depth separation
 serverless** — the model weights (~270 MB) exceed the bundle limit and a full
 restyle takes minutes, past the function timeout.
 
-To enable upload in production:
+Everything needed to host it ships in the repo: `apps/ai-service/Dockerfile`
+(installs deps, downloads the U²-Net + Depth-Anything models, runs uvicorn with
+`--proxy-headers`) and `render.yaml` (a one-click Render blueprint). The service
+serves the scenes it generates and returns **absolute** asset URLs, so the
+browser loads uploaded scenes from the backend, not from Vercel.
 
-1. **Host `apps/ai-service`** on an always-on host (Render, Railway, Fly.io, or a
-   small VM). It needs:
-   - the model weights (`scripts/prep-segmentation-model.py`,
-     `scripts/prep-style-models.py`),
-   - `OPENAI_API_KEY` set as a server env var (never committed),
-   - `AI_PROVIDER_MODE=live`.
-   Run it with `uvicorn app.main:app --host 0.0.0.0 --port 8000`.
-2. **Point the frontend at it**: set `NEXT_PUBLIC_API_BASE_URL` in the Vercel
-   project to the backend's public URL, then redeploy.
+**Deploy the backend (Render example):**
 
-### Production robustness notes
+1. Render Dashboard → **New → Blueprint** → select this repo (uses `render.yaml`),
+   or **New → Web Service** → Runtime **Docker**, Dockerfile
+   `apps/ai-service/Dockerfile`, context `apps/ai-service`.
+2. Plan: **Standard (2 GB RAM)** — the models need ~1–1.5 GB; 512 MB will OOM.
+3. Set env var **`OPENAI_API_KEY`** (for GPT styles). Nothing else is required —
+   `AI_PROVIDER_MODE=live` and the model paths are baked into the image, and CORS
+   already allows this project's `*.vercel.app` origins by regex.
+4. Deploy, then copy the service URL (e.g. `https://picsmotion-ai.onrender.com`).
 
-- `/scenes/process` is **synchronous** and takes several minutes per photo (13
-  styles). Front it with a proxy/host that allows long request timeouts, or
-  migrate upload to the async job API (`app/jobs.py`, `POST /pipeline/jobs` +
-  poll `GET /pipeline/jobs/{id}`) so the browser polls instead of holding one
-  long request. For a snappier upload, restyle fewer styles or lower
-  `gpt-image-1` quality.
-- Uploaded scenes are written under `scenes/uploads/<hash>/` and are **not**
-  committed (git-ignored). On a hosted backend, put them on a persistent volume
-  or object storage so they survive restarts.
+**Point the frontend at it:**
+
+5. Vercel → the web project → **Settings → Environment Variables** → add
+   `NEXT_PUBLIC_API_BASE_URL = https://picsmotion-ai.onrender.com` (Production).
+6. **Redeploy** the web app. Upload now POSTs to the hosted backend.
+
+Fly.io / Railway work the same way — point them at `apps/ai-service/Dockerfile`,
+give them ~1–2 GB RAM, and set `OPENAI_API_KEY`.
+
+### Production notes
+
+- **Latency:** `/scenes/process` is synchronous. Style generation now runs a few
+  GPT calls concurrently (`_MAX_CONCURRENT_STYLES` in `app/stylize.py`), so a
+  photo takes ~1–2 min instead of ~6. If your host enforces a shorter request
+  timeout, either raise it, lower `_MAX_CONCURRENT_STYLES`'s workload (fewer
+  styles), or migrate upload to the async job API (`app/jobs.py`).
+- **Persistence:** uploaded scenes live under `SCENES_OUTPUT_DIR` (`/data/scenes`
+  in the image) and are ephemeral — fine for upload-then-view, but attach a
+  persistent disk / object storage if you need them to survive restarts.
+- **Cost/abuse:** each upload triggers ~12 GPT image calls (~$1–2). For a public
+  demo, consider rate-limiting or gating the upload endpoint.
 
 ---
 

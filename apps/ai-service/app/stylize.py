@@ -48,6 +48,12 @@ _CACHE_SUFFIX = ".sha"
 #: are rewritten, so without this a reworked style would silently stay stale.
 _PIPELINE_REVISION = "7"
 
+#: How many styles to generate at once. GPT calls dominate wall-clock (~26s each);
+#: running a few concurrently turns a ~6-minute upload into ~1-2 minutes (below a
+#: host's request timeout). Kept modest so it stays under OpenAI's rate limits —
+#: the provider's retry/backoff absorbs the occasional 429.
+_MAX_CONCURRENT_STYLES = 4
+
 #: The web runtime loads WebP styles (see packages/scene-runtime LayerPlane and
 #: scripts/optimize-styles.py): ~10x smaller than the source PNG with no visible
 #: loss for a brush reveal. pixel-art stays lossless so its indexed pixels survive.
@@ -141,16 +147,20 @@ async def stylize_scene(
     styles_dir.mkdir(parents=True, exist_ok=True)
 
     is_available = getattr(resolved_provider, "is_available", None)
-    generated: list[StyleSpec] = []
-    failed: list[tuple[str, str]] = []
 
+    # Skip styles whose (git-ignored) weights are not installed rather than
+    # failing the whole run — the algorithmic styles still generate.
+    candidates: list[StyleSpec] = []
     for style in styles:
-        # Skip styles whose (git-ignored) weights are not installed rather than
-        # failing the whole run — the algorithmic styles still generate.
         if is_available is not None and not is_available(style):
             print(f"[skip] {style.id}.png (no weights for '{style.model}')")
             continue
+        candidates.append(style)
 
+    semaphore = asyncio.Semaphore(_MAX_CONCURRENT_STYLES)
+
+    async def _generate(style: StyleSpec) -> tuple[StyleSpec, str | None]:
+        """Return (style, error). error is None on success (cached or written)."""
         output_path = styles_dir / f"{style.id}.png"
         sha_path = output_path.with_name(output_path.name + _CACHE_SUFFIX)
         model = _style_model_label(resolved_provider, style)
@@ -159,22 +169,27 @@ async def stylize_scene(
         if output_path.exists() and sha_path.exists():
             if sha_path.read_text(encoding="utf-8").strip() == digest:
                 print(f"[skip] {style.id}.png (cached, {provider_name}/{model})")
-                generated.append(style)
-                continue
+                return style, None
 
-        # One flaky style (e.g. a hosted API rejection) must not abort the batch:
-        # log it, skip it, and keep generating the rest. Only styles with a valid
-        # image on disk make it into the manifest.
-        try:
-            result_bytes = await resolved_provider.stylize(original_bytes, style)
-        except Exception as exc:  # noqa: BLE001 — batch job isolates per-style failures
-            print(f"[fail] {style.id}.png ({provider_name}/{model}): {exc}")
-            failed.append((style.id, str(exc)))
-            continue
+        # One flaky style (e.g. a hosted API rejection) must not abort the run:
+        # log it, skip it, keep the rest. Only styles written to disk are kept.
+        async with semaphore:
+            try:
+                result_bytes = await resolved_provider.stylize(original_bytes, style)
+            except Exception as exc:  # noqa: BLE001 — isolate per-style failures
+                print(f"[fail] {style.id}.png ({provider_name}/{model}): {exc}")
+                return style, str(exc)
         output_path.write_bytes(result_bytes)
         sha_path.write_text(digest, encoding="utf-8")
         print(f"[done] {style.id}.png ({provider_name}/{model})")
-        generated.append(style)
+        return style, None
+
+    # gather preserves input order, so `generated` keeps the catalog order.
+    results = await asyncio.gather(*(_generate(s) for s in candidates))
+    generated: list[StyleSpec] = [style for style, error in results if error is None]
+    failed: list[tuple[str, str]] = [
+        (style.id, error) for style, error in results if error is not None
+    ]
 
     manifest = {
         "generatedAt": generated_at or datetime.now(UTC).isoformat(),

@@ -29,7 +29,10 @@ def test_process_separates_and_writes_scene() -> None:
     r = client.post("/scenes/process", files={"file": ("photo.png", _png_bytes(), "image/png")})
     assert r.status_code == 200
     data = r.json()
-    assert data["baseUrl"].startswith("/scenes/uploads/")
+    # base_url is an absolute URL to this backend (so the browser loads the
+    # generated assets from here, not the web origin).
+    assert data["baseUrl"].startswith("http")
+    assert f"/scenes/uploads/{data['sceneId']}/" in data["baseUrl"]
     assert data["sceneUrl"].endswith("/scene.json")
 
     out = os.path.join(get_settings().scenes_output_dir, "uploads", data["sceneId"])

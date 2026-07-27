@@ -1,0 +1,23 @@
+# Render blueprint for the PicMotion AI service (photo upload backend).
+# Deploy: Render Dashboard → New → Blueprint → pick this repo. Or point a new
+# Web Service at apps/ai-service/Dockerfile. See DEPLOYMENT.md.
+services:
+  - type: web
+    name: picsmotion-ai
+    runtime: docker
+    dockerfilePath: apps/ai-service/Dockerfile
+    dockerContext: apps/ai-service
+    # Separation loads ~275 MB of ONNX models into RAM plus per-request work;
+    # 512 MB (starter) will OOM. Standard = 2 GB.
+    plan: standard
+    region: oregon
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Required for GPT styles. Set the value in the Render dashboard (never commit).
+      - key: OPENAI_API_KEY
+        sync: false
+      # CORS already allows *.vercel.app for this project via regex; set this only
+      # if you serve the web app from a custom domain (comma-separated origins).
+      - key: CORS_ALLOW_ORIGINS
+        sync: false

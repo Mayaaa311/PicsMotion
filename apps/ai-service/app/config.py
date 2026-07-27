@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     fallback_completion_provider: str = "openai"
 
     # ---- Application ----
+    # Extra browser origins allowed to call this API (comma-separated), e.g. the
+    # deployed web URL "https://picsmotion-stylepaint.vercel.app". Localhost dev
+    # origins and the project's *.vercel.app aliases are always allowed.
+    cors_allow_origins: str = ""
     database_url: str = "postgresql://postgres:postgres@localhost:5432/interactive_photo"
     redis_url: str = "redis://localhost:6379/0"
     public_web_base_url: str = "http://127.0.0.1:3000"

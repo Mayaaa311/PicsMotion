@@ -7,3 +7,6 @@ pillow>=10.4
 numpy>=2.0
 python-dotenv>=1.0
 python-multipart>=0.0.9
+onnxruntime>=1.19
+# Pinned to 4.x: OpenCV 5 dropped the Torch7 importer for the .t7 style nets.
+opencv-python-headless>=4.10,<5

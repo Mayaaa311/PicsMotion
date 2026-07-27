@@ -12,8 +12,9 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
@@ -24,20 +25,26 @@ from app.stylize import stylize_scene
 
 logger = logging.getLogger(__name__)
 
+# Local dev origins are always allowed; extra ones (the deployed web URL) come
+# from CORS_ALLOW_ORIGINS, and every *.vercel.app alias of this project is matched
+# by regex so preview deployments work without reconfiguring.
 ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:3000",
+    *[o.strip() for o in get_settings().cors_allow_origins.split(",") if o.strip()],
 ]
+VERCEL_ORIGIN_REGEX = r"https://picsmotion-stylepaint[a-z0-9-]*\.vercel\.app"
 
 app = FastAPI(
     title="PicMotion AI Service",
     version="0.1.0",
-    description="API-first AI interactive photo-to-music backend (mock mode).",
+    description="API-first AI interactive photo-to-2.5D backend.",
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=VERCEL_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -144,7 +151,7 @@ class ProcessSceneResponse(CamelModel):
 
 
 @app.post("/scenes/process", response_model=ProcessSceneResponse, tags=["scenes"])
-async def process_scene(file: UploadFile = File(...)) -> ProcessSceneResponse:
+async def process_scene(request: Request, file: UploadFile = File(...)) -> ProcessSceneResponse:
     """Separate an uploaded photo into a 3-layer interactive scene (CPU, no keys).
 
     Cached by content hash. Real per-object separation is the AI pipeline; this
@@ -185,10 +192,23 @@ async def process_scene(file: UploadFile = File(...)) -> ProcessSceneResponse:
     with open(scene_json, encoding="utf-8") as f:
         layer_count = len(json.load(f).get("layers", []))
 
-    base_url = f"/scenes/uploads/{scene_id}"
+    # Absolute URL to THIS service, so the browser loads the uploaded scene's
+    # assets from the backend (which generated them) rather than the web origin.
+    # Derived from the request (honours the host's X-Forwarded-* via uvicorn
+    # --proxy-headers), so it works on any host without pre-configuring the URL.
+    origin = str(request.base_url).rstrip("/")
+    base_url = f"{origin}/scenes/uploads/{scene_id}"
     return ProcessSceneResponse(
         scene_id=scene_id,
         base_url=f"{base_url}/",
         scene_url=f"{base_url}/scene.json",
         layers=layer_count,
     )
+
+
+# Serve generated scene assets (uploads) so a browser on the web origin can load
+# them cross-origin from this backend. Mounted AFTER the routes above so the
+# POST /scenes/process route keeps precedence over this static prefix.
+_scenes_dir = Path(get_settings().scenes_output_dir)
+_scenes_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/scenes", StaticFiles(directory=str(_scenes_dir)), name="scenes")
