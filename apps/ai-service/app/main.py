@@ -194,9 +194,14 @@ async def process_scene(request: Request, file: UploadFile = File(...)) -> Proce
 
     # Absolute URL to THIS service, so the browser loads the uploaded scene's
     # assets from the backend (which generated them) rather than the web origin.
-    # Derived from the request (honours the host's X-Forwarded-* via uvicorn
-    # --proxy-headers), so it works on any host without pre-configuring the URL.
-    origin = str(request.base_url).rstrip("/")
+    # Prefer an explicit PUBLIC_API_BASE_URL when set to a real host (e.g. a
+    # tunnel URL) — deterministic regardless of proxy quirks; otherwise derive
+    # from the request (honours X-Forwarded-* via uvicorn --proxy-headers).
+    configured = settings.public_api_base_url.strip()
+    if configured and "localhost" not in configured and "127.0.0.1" not in configured:
+        origin = configured.rstrip("/")
+    else:
+        origin = str(request.base_url).rstrip("/")
     base_url = f"{origin}/scenes/uploads/{scene_id}"
     return ProcessSceneResponse(
         scene_id=scene_id,
