@@ -27,6 +27,8 @@ const SHOW_PRESETS = false;
 
 const DEFAULT_SCENE_DIR = '/scenes/gallery/yosemite-falls';
 const GALLERY_INDEX = '/scenes/gallery/index.json';
+// Upload backend URL. Set NEXT_PUBLIC_API_BASE_URL (build-time) to the hosted/
+// tunnelled AI service; defaults to localhost for dev.
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 // Client-side guard between uploads. NOT real protection (trivially bypassed) —
 // the backend should rate-limit for a public deploy; this just curbs accidental
