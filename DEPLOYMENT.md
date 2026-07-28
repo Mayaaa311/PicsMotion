@@ -58,11 +58,35 @@ restyle takes minutes, past the function timeout.
 
 Everything needed to host it ships in the repo: `apps/ai-service/Dockerfile`
 (installs deps, downloads the U²-Net + Depth-Anything models, runs uvicorn with
-`--proxy-headers`) and `render.yaml` (a one-click Render blueprint). The service
-serves the scenes it generates and returns **absolute** asset URLs, so the
-browser loads uploaded scenes from the backend, not from Vercel.
+`--proxy-headers`). The service serves the scenes it generates and returns
+**absolute** asset URLs, so the browser loads uploaded scenes from the backend,
+not from Vercel. Pick a host below.
 
-**Deploy the backend (Render example):**
+### Option A — Hugging Face Spaces (free, recommended)
+
+Free CPU tier, 16 GB RAM (plenty for the models), always-on (sleeps when idle,
+wakes on request). Runs the same Dockerfile.
+
+1. **Create the Space:** huggingface.co → **New → Space** → **SDK: Docker**,
+   hardware **CPU basic (free)**, name e.g. `picsmotion-ai`.
+2. **Fill it in** (from the project root; excludes your `.env` automatically):
+   ```bash
+   git clone https://huggingface.co/spaces/<your-user>/picsmotion-ai hf-space
+   scripts/prep-hf-space.sh hf-space
+   cd hf-space && git add -A && git commit -m "Deploy PicMotion AI service" && git push
+   ```
+   (the push asks for your HF username + an access token as the password —
+   create one at huggingface.co/settings/tokens with **write** scope.)
+3. **Set the secret:** Space → **Settings → Variables and secrets** → add secret
+   `OPENAI_API_KEY`. Never commit it.
+4. HF builds the image (~5–10 min, downloads the models). When it's running, your
+   API base is **`https://<your-user>-picsmotion-ai.hf.space`** — test
+   `…/health` → `{"status":"healthy"}`.
+
+### Option B — Render (paid, no cold starts)
+
+`render.yaml` is a one-click blueprint, but the free tier's 512 MB OOMs on the
+models, so this needs the **Standard (2 GB, ~$25/mo)** plan.
 
 1. Render Dashboard → **New → Blueprint** → select this repo (uses `render.yaml`),
    or **New → Web Service** → Runtime **Docker**, Dockerfile
